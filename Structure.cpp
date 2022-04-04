@@ -3,8 +3,8 @@ using namespace std;
 Pin::Pin():pin_ID(-1), net_ID(-1) {}
 Pin::Pin(int pID, int nID, std::pair<int,int> p, std::string pName, std::string nName, std::string cName):  \
                        pin_ID(pID), net_ID(nID), pin_name(pName), net_name(nName), comp_name(cName), CPU_side(false) {
-    real_pos.x=p.x;
-    real_pos.y=p.y;
+    real_pos.X=p.X;
+    real_pos.Y=p.Y;
     escape_dir=-1;
 }
 void Pin::change_pos(int x, int y){

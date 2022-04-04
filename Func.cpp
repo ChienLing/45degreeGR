@@ -267,11 +267,11 @@ vector<int> LCS(const vector<int>& v1, const vector<int>& v2) {
         else
             cout<<"DP wrong\n";
     }
-    //     printf ("LCS ans\n");
-    // for (auto it=ans.rbegin(); it!=ans.rend(); it++) {
-    //     printf ("%d ", *it);
-    // }
-    //     printf ("\n");
+        printf ("ans1/ans2 LCS ans\n");
+    for (auto it=ans.rbegin(); it!=ans.rend(); it++) {
+        printf ("%d ", *it);
+    }
+        printf ("\n");
     return ans;
 }
 
@@ -353,13 +353,13 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<vector<int>>&
 }
 
 
-pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>& v1, const vector<decode_node>& v2, 
+pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  vector<decode_node> v2, 
                      map<int,double>& weight, const vector<pair<int,int>>& diff_pair, 
                      vector<int>& location1, vector<int>& location2) {
     pair<vector<pair<int,int>>,vector<pair<int,int>>> best_ans;
     bool all_dp_INorOUT(false);
     int round(0);
-    while(!all_dp_INorOUT) {
+    while(!all_dp_INorOUT || round<=3) {
         map<int,int> net_appearnum;
         vector<int> ans_pos_in_v1,ans_pos_in_v2;
         vector<pair<int,int>> ans1,ans2;
@@ -447,19 +447,19 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                 }
             }
         }
-        /*printf("   ");
-        for (int i=0; i<v1.size(); i++) {
-            printf("%9d",v1.at(i).ID);
-        }
-        printf("\n");
-        for (int j=0; j<v2.size(); j++) {
-            printf("%d  ",v2.at(j).ID);
-            for (int i=0; i<v1.size(); i++) {
-                printf("%5.1f/%d/%d",DP.at(i).at(j).num, DP.at(i).at(j).backward,DP.at(i).at(j).upward);
-            }
-            printf("\n");
-        }
-        printf("\n");*/
+        // /**/printf("   ");
+        // for (int i=0; i<v1.size(); i++) {
+        //     printf("%9d",v1.at(i).ID);
+        // }
+        // printf("\n");
+        // for (int j=0; j<v2.size(); j++) {
+        //     printf("%d  ",v2.at(j).ID);
+        //     for (int i=0; i<v1.size(); i++) {
+        //         printf("%5.1f/%d/%d",DP.at(i).at(j).num, DP.at(i).at(j).backward,DP.at(i).at(j).upward);
+        //     }
+        //     printf("\n");
+        // }
+        // printf("\n");
         map<int,pair<vector<decode_node>,vector<decode_node>>> record_L_R1,record_L_R2;
         map<int,vector<decode_node>> record_M1,record_M2;
         vector<int> temp_ans;
@@ -524,9 +524,14 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
             while (it->second.R.size()+next_it->second.L.size() > cap) {
                 bool del(false);
                 for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
-                    if (net_appearnum[erase_it->ID] > 1) {
+                    if (net_appearnum.at(erase_it->ID) > 1) {
                         printf("del repeat %d\n",erase_it->ID);
-                        net_appearnum[erase_it->ID]--;
+                        for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                            if (*it_v1 == *erase_it) {
+                                it_v1->ID==-1;
+                            }
+                        }
+                        net_appearnum.at(erase_it->ID)--;
                         it->second.R.erase(erase_it);
                         del = true;
                         break;
@@ -535,9 +540,14 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                 if (del)
                     continue;
                 for (auto erase_it=next_it->second.L.begin(); erase_it!=next_it->second.L.end(); erase_it++) {
-                    if (net_appearnum[erase_it->ID] > 1) {
+                    if (net_appearnum.at(erase_it->ID) > 1) {
                         printf("del repeat %d\n",erase_it->ID);
-                        net_appearnum[erase_it->ID]--;
+                        for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                            if (*it_v1 == *erase_it) {
+                                it_v1->ID = -1;
+                            }
+                        }
+                        net_appearnum.at(erase_it->ID)--;
                         next_it->second.L.erase(erase_it);
                         del = true;
                         break;
@@ -547,26 +557,36 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                     continue;
                 if (it->second.R.size() > next_it->second.L.size()) {
                     printf("pop %d\n",it->second.R.back().ID);
+                    for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                        if (*it_v1 == it->second.R.back()) {
+                            it_v1->ID = -1;
+                        }
+                    }
                     it->second.R.pop_back();
                 }
                 else {
                     printf("pop %d\n",next_it->second.L.back().ID);
+                    for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                        if (*it_v1 == next_it->second.L.back()) {
+                            it_v1->ID = -1;
+                        }
+                    }
                     next_it->second.L.pop_back();
                 }
             }
         }printf("\n");
-        // printf("record_L_R2 ans(no remove anyting)\n");
-        // for (auto it1=record_L_R2.begin(); it1!=record_L_R2.end(); it1++) {
-        //     printf("%d: ",it1->first);
-        //     for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
-        //         printf("%d ",it2->ID);
-        //     }
-        //     printf("\\");
-        //     for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
-        //         printf("%d ",it2->ID);
-        //     }
-        //     printf("\n");
-        // }printf("\n");
+        printf("record_L_R2 ans(no remove anyting)\n");
+        for (auto it1=record_L_R2.begin(); it1!=record_L_R2.end(); it1++) {
+            printf("%d: ",it1->first);
+            for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
+                printf("%d ",it2->ID);
+            }
+            printf("\\");
+            for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
+                printf("%d ",it2->ID);
+            }
+            printf("\n");
+        }printf("\n");
         for (auto it=record_L_R2.begin(); it!=record_L_R2.end(); it++) {
             auto next_it=it;    next_it++;
             if (next_it==record_L_R2.end())
@@ -577,35 +597,87 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                 cap++;
             printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
             while (it->second.R.size()+next_it->second.L.size() > cap) {
+                bool del(false);
+                for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
+                    if (net_appearnum.at(erase_it->ID) > 1) {
+                        printf("del repeat %d\n",erase_it->ID);
+                        for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                            if (*it_v1 == *erase_it) {
+                                it_v1->ID==-1;
+                            }
+                        }
+                        net_appearnum.at(erase_it->ID)--;
+                        it->second.R.erase(erase_it);
+                        del = true;
+                        break;
+                    }
+                }
+                if (del)
+                    continue;
+                for (auto erase_it=next_it->second.L.begin(); erase_it!=next_it->second.L.end(); erase_it++) {
+                    if (net_appearnum.at(erase_it->ID) > 1) {
+                        printf("del repeat %d\n",erase_it->ID);
+                        for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                            if (*it_v1 == *erase_it) {
+                                it_v1->ID = -1;
+                            }
+                        }
+                        net_appearnum.at(erase_it->ID)--;
+                        next_it->second.L.erase(erase_it);
+                        del = true;
+                        break;
+                    }
+                }
+                if (del)
+                    continue;
                 if (it->second.R.size() > next_it->second.L.size()) {
                     printf("pop %d\n",it->second.R.back().ID);
+                    for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                        if (*it_v1 == it->second.R.back()) {
+                            it_v1->ID = -1;
+                        }
+                    }
                     it->second.R.pop_back();
                 }
                 else {
                     printf("pop %d\n",next_it->second.L.back().ID);
+                    for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                        if (*it_v1 == next_it->second.L.back()) {
+                            it_v1->ID = -1;
+                        }
+                    }
                     next_it->second.L.pop_back();
                 }
             }
         }
-
+        {   
+            vector<decode_node> temp_v1, temp_v2;
+            for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
+                if(it_v1->ID != -1)
+                    temp_v1.push_back(*it_v1);
+            }
+            for (auto it_v2=v2.begin(); it_v2!=v2.end(); it_v2++) {
+                if(it_v2->ID != -1)
+                    temp_v2.push_back(*it_v2);
+            }
+            v1.clear(); v2.clear();
+            v1=temp_v1; v2=temp_v2;
+        }
         for (int line=0; line<location1.size(); line++){
             auto it1=&record_L_R1[line];
             int idx1(it1->L.size()),idx2(1);
             for (auto it2=it1->L.rbegin(); it2!=it1->L.rend(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans1.size());
-                ans1.push_back({it2->ID,idx1});
-                // net_appearnum[it2->ID]++;
+                // net_in_ans1_pos[it2->ID].push_back(ans1.size());
+                ans1.push_back({it2->ID,idx1*(-1)});
                 idx1--;
             }
             for (auto it2=record_M1[line].begin(); it2!=record_M1[line].end(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans1.size());
+                // net_in_ans1_pos[it2->ID].push_back(ans1.size());
                 ans1.push_back({it2->ID,0});
-                // net_appearnum[it2->ID]++;
             }
             for (auto it2=it1->R.begin(); it2!=it1->R.end(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans1.size());
+                // net_in_ans1_pos[it2->ID].push_back(ans1.size());
                 ans1.push_back({it2->ID,idx2});
-                // net_appearnum[it2->ID]++;
                 idx2++;
             }
         }           
@@ -613,32 +685,29 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
             auto it1=&record_L_R2[line];
             int idx1(it1->L.size()),idx2(1);
             for (auto it2=it1->L.rbegin(); it2!=it1->L.rend(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans2.size());
-                ans2.push_back({it2->ID,idx1});
-                // net_appearnum[it2->ID]++;
+                // net_in_ans2_pos[it2->ID].push_back(ans2.size());
+                ans2.push_back({it2->ID,idx1*(-1)});
                 idx1--;
             }
             for (auto it2=record_M2[line].begin(); it2!=record_M2[line].end(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans2.size());
+                // net_in_ans2_pos[it2->ID].push_back(ans2.size());
                 ans2.push_back({it2->ID,0});
-                // net_appearnum[it2->ID]++;
             }
             for (auto it2=it1->R.begin(); it2!=it1->R.end(); it2++) {
-                net_in_ans1_pos[it2->ID].push_back(ans2.size());
+                // net_in_ans2_pos[it2->ID].push_back(ans2.size());
                 ans2.push_back({it2->ID,idx2});
-                // net_appearnum[it2->ID]++;
                 idx2++;
             }
         }        
 
         printf ("LCS ans1\n");
         for (auto it=ans1.begin(); it!=ans1.end(); it++) {
-            printf ("%d ", it->first);
+            printf ("%d/%d ", it->first,it->second);
         }
         printf ("\n");
         printf ("LCS ans2\n");
         for (auto it=ans2.begin(); it!=ans2.end(); it++) {
-            printf ("%d ", it->first);
+            printf ("%d/%d ", it->first,it->second);
         }
         printf ("\n");
         vector<int> list1, list2;
@@ -654,32 +723,63 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
         //     printf("%d ",*it);
         //     net_appearnum[*it]++;
         // }
+
+        //if some nets only in ans1/ans2 => delete
         {
+            net_appearnum.clear();
             vector<pair<int,int>> temp_ans1,temp_ans2;
             int j(0);
             for (auto it=_ans.rbegin(); it!=_ans.rend(); it++) {
+                net_appearnum[*it]++;
                 while (*it != ans1.at(j).first) {
                     ans1.at(j).first=-1;
                     j++;
                 }
                 j++;
             }
+            for (auto it1=ans1.begin(); it1!=ans1.end(); it1++) {
+                if (net_appearnum[it1->first]>1 && it1->first!=-1) {
+                    printf("ans1 net_appearnum[%d] = %d\n",it1->first,net_appearnum[it1->first]);
+                    net_appearnum[it1->first]--;
+                    printf("ans1 net_appearnum[%d]-- = %d\n",it1->first,net_appearnum[it1->first]);
+                    it1->first=-1;
+                }
+            }
+            net_appearnum.clear();
             j=0;
             for (auto it=_ans.rbegin(); it!=_ans.rend(); it++) {
+                net_appearnum[*it]++;
                 while (*it != ans2.at(j).first) {
                     ans2.at(j).first=-1;
                     j++;
                 }
                 j++;
             }
+            for (auto it2=ans2.begin(); it2!=ans2.end(); it2++) {
+                if (net_appearnum[it2->first]>1 && it2->first!=-1) {
+                    printf("ans2 net_appearnum[%d] = %d\n",it2->first,net_appearnum[it2->first]);
+                    net_appearnum[it2->first]--;
+                    printf("ans2 net_appearnum[%d]-- = %d\n",it2->first,net_appearnum[it2->first]);
+                    it2->first=-1;
+                }
+            }
+            // printf("temp ans1: ");
             for (auto it=ans1.begin(); it!=ans1.end(); it++) {
-                if (it->first != -1)
+                if (it->first != -1) {
+                    // printf("%d/%d ",it->first,temp_ans1.size());
+                    net_in_ans1_pos[it->first].push_back(temp_ans1.size());
                     temp_ans1.push_back(*it);
+                }
             }
+            // printf("\ntemp ans2: ");
             for (auto it=ans2.begin(); it!=ans2.end(); it++) {
-                if (it->first != -1)
+                if (it->first != -1) {
+                    // printf("%d/%d ",it->first,temp_ans2.size());
+                    net_in_ans2_pos[it->first].push_back(temp_ans2.size());
                     temp_ans2.push_back(*it);
+                }
             }
+            // printf("\n");
             ans1.clear();ans2.clear();
             ans1=temp_ans1; ans2=temp_ans2;
         }
@@ -691,8 +791,14 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                 weight.at(it->first)-=0.1;
             }
         }
-        if (net_appearnum.size() > best_ans.first.size())
+        if (ans1.size() > best_ans.first.size()) {
+            printf("\nans1.size=%d  best_ans.first.size=%d\n",ans1.size(),best_ans.first.size());
+            printf("best ans assign\n");
+            for (auto it=ans1.begin(); it!=ans1.end(); it++) {
+                printf("%d ",it->first);
+            }printf("\n\n");
             best_ans = {ans1,ans2};
+        }
 
         //deal with differential pair
         all_dp_INorOUT=true;
@@ -721,17 +827,22 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
                 }
                 else if (net_appearnum[it->first]==0 && net_appearnum[it->second]!=0) {
                     for (auto pos=net_in_ans1_pos.at(it->second).begin(); pos!=net_in_ans1_pos.at(it->second).end(); pos++) {
+                        int p=*pos;
+                        int v=ans1.at(*pos).first;
                         ans1.at(*pos).first = -1;
                     }
                     for (auto pos=net_in_ans2_pos.at(it->second).begin(); pos!=net_in_ans2_pos.at(it->second).end(); pos++) {
+                        int p=*pos;
+                        int v=ans2.at(*pos).first;
                         ans2.at(*pos).first = -1;
                     }
                 }
             }
             vector<pair<int,int>> trim_ans1, trim_ans2;
             for (auto it=ans1.begin(); it!=ans1.end(); it++) {
-                if (it->first != -1)
+                if (it->first != -1) {
                     trim_ans1.push_back(*it);
+                }
             }
             for (auto it=ans2.begin(); it!=ans2.end(); it++) {
                 if (it->first != -1)
@@ -742,6 +853,71 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<decode_node>&
         }
         round++;
     }
-    printf("best ans return\n");
+    printf("best ans return!!!!!!!!!!!!!!!!!!!\n");
+    for (auto nid=best_ans.first.begin();nid!=best_ans.first.end();nid++) {
+        printf("%d ",*nid);
+    }printf("\n");
     return best_ans;
 }
+
+bool line_crossing(const Line& line1, const Line& line2) {
+    bool ans;
+    pair<long long int,long long int> v1={line1.ep1.X-line1.ep2.X,line1.ep1.Y-line1.ep2.Y};
+    pair<long long int,long long int> v2={line2.ep1.X-line2.ep2.X,line2.ep1.Y-line2.ep2.Y};
+    if (line1.ep1==line2.ep1 || line1.ep2==line2.ep2)
+        return false;
+    {
+        pair<long long int,long long int> a1={line2.ep1.X-line1.ep2.X,line2.ep1.Y-line1.ep2.Y};
+        pair<long long int,long long int> a2={line2.ep2.X-line1.ep2.X,line2.ep2.Y-line1.ep2.Y};
+        long long int num1=v1.X*a1.Y-v1.Y*a1.X;//v1 X a1
+        long long int num2=v1.X*a2.Y-v1.Y*a2.X;//v1 X a2
+        if ((a1.X==0 && a1.Y==0) || (a2.X==0 && a2.Y==0))
+            return false;
+        // printf("%lld %lld %lld\n",v1.X*a1.Y , v1.Y*a1.X , num1);
+        // printf("%lld %lld %lld\n",v1.X*a2.Y , v1.Y*a2.X , num2);
+        if ((num1>=0 && num2<=0) || (num1<=0 && num2>=0)) {//different sign
+            ans = true;
+        }
+        else if ((num1>0 && num2>0) || (num1<0 && num2<0))
+            return false;
+    }
+    {
+        pair<long long int,long long int> a1={line1.ep1.X-line2.ep2.X,line1.ep1.Y-line2.ep2.Y};
+        pair<long long int,long long int> a2={line1.ep2.X-line2.ep2.X,line1.ep2.Y-line2.ep2.Y};
+        long long int num1=v2.X*a1.Y-v2.Y*a1.X;//v2 X a1
+        long long int num2=v2.X*a2.Y-v2.Y*a2.X;//v2 X a2
+        if ((a1.X==0 && a1.Y==0) || (a2.X==0 && a2.Y==0))
+            return false;
+        // printf("%lld %lld %lld\n",v1.X*a1.Y , v1.Y*a1.X , num1);
+        // printf("%lld %lld %lld\n",v1.X*a2.Y , v1.Y*a2.X , num2);
+        if ((num1>=0 && num2<=0) || (num1<=0 && num2>=0)) {//different sign
+            return true;
+        }
+        else if ((num1>0 && num2>0) || (num1<0 && num2<0))
+            return false;
+    }
+    printf("something loss\n");
+    return true;
+}
+
+set<int>  test_crossing(const map<int,Line>& line_list, const Line& line) {
+    set<int> ans;
+    for (auto l=line_list.begin(); l!=line_list.end(); l++) {
+        int i=l->first;
+        if (line_crossing(l->second,line)) {
+            ans.insert(l->first);
+        }
+    }
+    return ans;
+}
+set<int>  test_crossing(const vector<Line>& line_list, const Line& line) {
+    set<int> ans;
+    for (auto l=line_list.begin(); l!=line_list.end(); l++) {
+        int i=l->net;
+        if (line_crossing(*l,line)) {
+            ans.insert(l->net);
+        }
+    }
+    return ans;
+}
+

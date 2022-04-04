@@ -514,14 +514,16 @@ void Parser::read_netlist() {
     printf("CPU:%s (%d,%d)~(%d,%d)\nDDR ",router->CPU_name.c_str(), router->comp_boundary.at(router->CPU_name).left,router->comp_boundary.at(router->CPU_name).bot,
                                             router->comp_boundary.at(router->CPU_name).right,router->comp_boundary.at(router->CPU_name).top);
     for (int i=0; i<router->DDR_name.size(); i++) {
-        printf("%s (%d,%d)~(%d,%d)   ",router->DDR_name.at(i).c_str(), router->comp_boundary.at(router->DDR_name.at(i)).left,router->comp_boundary.at(router->DDR_name.at(i)).bot,
+        printf("%s (%d,%d)~(%d,%d)   \n",router->DDR_name.at(i).c_str(), router->comp_boundary.at(router->DDR_name.at(i)).left,router->comp_boundary.at(router->DDR_name.at(i)).bot,
                                             router->comp_boundary.at(router->DDR_name.at(i)).right,router->comp_boundary.at(router->DDR_name.at(i)).top);
     }
     printf("\n ");
 
     for (auto p=router->pin_list.begin(); p!=router->pin_list.end(); p++) {
         p->ddr_name = p->comp_name;
-        if (p->pin_name.find(router->CPU_name)!=std::string::npos) {
+        auto P=*p;
+        // printf("pin name:%s\n",p->pin_name.c_str());
+        if (p->comp_name==router->CPU_name) {
             if (router->net_list.at(p->net_ID).net_pinID.size()==2) {
                 Pin p0=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(0));
                 Pin p1=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(1));
@@ -531,8 +533,12 @@ void Parser::read_netlist() {
                     p->ddr_name = p1.comp_name;
 
             }
+            else
+                p->ddr_name = "ADR";
             p->CPU_side = true;
         }
+        else 
+            p->CPU_side = false;
     }
 
     for (auto comp=router->comp_boundary.begin(); comp!=router->comp_boundary.end(); comp++) {
@@ -593,8 +599,10 @@ void Parser::print_netlist(){
         printf("net %d  %s  #pin %d ", n->net_ID, n->net_name.c_str(),n->net_pinID.size());
         cout<<"  is2pin_net: "<<n->is2pin_net<<endl;
         for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
-            printf("pin id: %d  pin name: %s comp:%s, ddr:%s\n",router->pin_list.at(*pid).pin_ID, router->pin_list.at(*pid).pin_name.c_str(),\
-                                                                router->pin_list.at(*pid).comp_name.c_str(), router->pin_list.at(*pid).ddr_name.c_str());
+            printf("pin id: %d CPU side:%d pin name: %s comp:%s, ddr:%s pos(%d,%d)\n",router->pin_list.at(*pid).pin_ID,router->pin_list.at(*pid).CPU_side, 
+                                                                router->pin_list.at(*pid).pin_name.c_str(),router->pin_list.at(*pid).comp_name.c_str(), 
+                                                                router->pin_list.at(*pid).ddr_name.c_str(),router->pin_list.at(*pid).real_pos.X, 
+                                                                router->pin_list.at(*pid).real_pos.Y);
         }
         printf("\n");
     }

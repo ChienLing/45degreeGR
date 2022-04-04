@@ -7,6 +7,8 @@ using namespace std;
 BLMR::BLMR(){}
 
 void BLMR::merge_group() {
+    //if the net in different length matching groups simutaneously, then merge group
+    //if the region of pins of ddr1 and ddr2 have overlap, then merge group (for weigtedLCS)
     printf("merge_group()\n");
     vector<int> mg(static_cast<int>(group_list.size()));
     for (int i=0; i<static_cast<int>(mg.size()); i++) mg.at(i)=i;
@@ -67,6 +69,108 @@ void BLMR::merge_group() {
             printf("\n");
         idx++;
     }
+    all_group_net.resize(2);
+    for(auto g=merged_group.begin(); g!=merged_group.end(); g++) {
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            if (net_list.at(*nid).is2pin_net)
+                all_group_net.at(0).push_back(*nid);
+            else
+                all_group_net.at(1).push_back(*nid);
+        }
+    }
+
+
+
+    /*map<string,int> ddr_nameID;
+    map<int,string> ddr_IDname;
+    map<string,vector<Pin*>> net_pin_in_cpu;
+    map<string,Boundary> net_pin_in_cpu_region;
+    vector<int> overlap_cpu_pin(ddr_nameID.size());
+    // f(i,0,ddr_nameID.size()-1) {
+    //     overlap_cpu_pin[i]=i;
+    // }
+
+    // //classify the group net by its ddr name
+    map<string,vector<int>> temp_merged_group_by_ddr;//new group:netID
+    vector<vector<int>> merged_group_by_ddr;
+    // for (auto n=net_list.begin(); n!=net_list.end(); n++) {
+    //     if (n->belong_group.size()==0 || !n->is2pin_net)
+    //         continue;
+    //     temp_merged_group_by_ddr[pin_list.at(n->net_pinID.at(0)).ddr_name].push_back(n->net_ID);
+    // }
+    //find the region of each ddr pin of cpu
+    for (auto g=merged_group.begin(); g!=merged_group.end(); g++){
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            for (auto pid=net_list.at(*nid).net_pinID.begin();pid!=net_list.at(*nid).net_pinID.end(); pid++) {
+                auto p=pin_list.at(*pid);
+                if (p.comp_name==CPU_name && p.ddr_name!="ADR") {
+                    net_pin_in_cpu[p.ddr_name].push_back(&pin_list.at(*pid));
+                    if (p.real_pos.X > net_pin_in_cpu_region[p.ddr_name].right)
+                        net_pin_in_cpu_region[p.ddr_name].right = p.real_pos.X;
+                    if (p.real_pos.X < net_pin_in_cpu_region[p.ddr_name].left)
+                        net_pin_in_cpu_region[p.ddr_name].left = p.real_pos.X;
+                    if (p.real_pos.X > net_pin_in_cpu_region[p.ddr_name].top)
+                        net_pin_in_cpu_region[p.ddr_name].top = p.real_pos.Y;
+                    if (p.real_pos.X < net_pin_in_cpu_region[p.ddr_name].bot)
+                        net_pin_in_cpu_region[p.ddr_name].bot = p.real_pos.Y;
+                }
+            }
+        }
+    }
+    //transfer map<string,vector<int>> to  vector<vector<int>> and use ddr_nameID record;
+    for (auto g=temp_merged_group_by_ddr.begin(); g!=temp_merged_group_by_ddr.end(); g++) {
+        merged_group_by_ddr.push_back(g->second);
+        int i=ddr_nameID.size();
+        ddr_nameID[g->first] = i;
+        ddr_IDname[i] = g->first;
+        printf("ddr: %s ID:%d\n",g->first.c_str(),i);
+    }
+    //if region overlap, then union;
+    for (auto nameID=ddr_nameID.begin(); nameID!=ddr_nameID.end(); nameID++) {
+        auto next_nameID = nameID;  next_nameID++;
+        int firstID = ddr_nameID[nameID->first];
+        while (next_nameID!=ddr_nameID.end()){
+            int ddrID=ddr_nameID[next_nameID->first];
+            if (occupy(net_pin_in_cpu_region[nameID->first],net_pin_in_cpu_region[next_nameID->first])) {
+                if (find_root(overlap_cpu_pin,firstID) != find_root(overlap_cpu_pin,ddrID)) {
+                    if (find_root(overlap_cpu_pin,firstID) < find_root(overlap_cpu_pin,ddrID))
+                        overlap_cpu_pin.at(find_root(overlap_cpu_pin,ddrID)) = find_root(overlap_cpu_pin,firstID);
+                    else
+                        overlap_cpu_pin.at(find_root(overlap_cpu_pin,firstID)) = find_root(overlap_cpu_pin,ddrID);
+                }
+            }
+            next_nameID++;
+        }
+    }
+    
+    map<int,vector<int>> temp_merge_ddr_region;
+    vector<vector<int>> temp_merge_ddrID_region;
+    for (int i=0; i<overlap_cpu_pin.size(); i++) {
+        temp_merge_ddr_region[find_root(overlap_cpu_pin, overlap_cpu_pin.at(i))].push_back(i);
+    }
+    idx=0;
+    for (auto it=temp_merge_ddr_region.begin(); it!=temp_merge_ddr_region.end(); it++) {
+        printf("ddr region group %d:",idx);
+        for (auto it2=it->second.begin(); it2!=it->second.end(); it2++) {
+            printf(" %d",*it2);
+        }
+        printf(" \n");
+        idx++;
+    }
+    for (auto g=temp_merge_ddr_region.begin(); g!=temp_merge_ddr_region.end(); g++) {
+        temp_merge_ddrID_region.push_back(g->second);
+    }
+    idx=0;
+    merged_group_by_ddr_and_cpu_region.resize(temp_merge_ddrID_region.size());
+    for (auto ddrID_group=temp_merge_ddrID_region.begin(); ddrID_group!=temp_merge_ddrID_region.end(); ddrID_group++) {
+        for (auto ddr_ID=ddrID_group->begin(); ddr_ID!=ddrID_group->end(); ddr_ID++) {
+            string ddr_name=ddr_IDname[*ddr_ID];
+            for (auto double_pin_it=net_pin_in_cpu[ddr_name].begin(); double_pin_it!=net_pin_in_cpu[ddr_name].end(); double_pin_it++) {
+                merged_group_by_ddr_and_cpu_region.at(idx).push_back((*(double_pin_it))->net_ID);
+            }
+        }
+        idx++;
+    }*/
 }
 
 /*void BLMR::partition() {
@@ -120,7 +224,178 @@ void BLMR::merge_group() {
 
 void BLMR::planning() {
     //deal with CPU pin
+    // if (g!=merged_group.begin())
+    //     break;
+    map<string, vector<int>> comp_cpu_pin;
+    map<string, vector<int>> comp_ddr_pin;
+    Boundary b=comp_boundary.at(CPU_name);
+    printf("CPU boundary:(%d,%d)~(%d,%d)\n",b.left,b.bot,b.right,b.top);
+    for (auto n=net_list.begin(); n!=net_list.end(); n++) {
+        if (n->is2pin_net) {
+            for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
+                auto p=&pin_list.at(*pid);
+                if (p->comp_name==CPU_name && p->ddr_name!="ADR") {
+                    // printf("%s\n",p->ddr_name.c_str());
+                    // if (p->net_ID==89)
+                    //     printf("%d\n",p->pin_ID);
+                    comp_cpu_pin[p->ddr_name].push_back(p->pin_ID);
+                }
+            } 
+        }
+                
+    }
+    for (auto n=net_list.begin(); n!=net_list.end(); n++) {
+        if (n->net_pinID.size()==DDR_name.size()+1 || n->is2pin_net) {
+            for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
+                auto p=&pin_list.at(*pid);
+                if (p->comp_name!=CPU_name) {
+                    comp_ddr_pin[p->comp_name].push_back(p->pin_ID);
+                    // printf("adr net:%d pin:%s comp:%s\n",p->net_ID, p->pin_name.c_str(), p->comp_name.c_str());
+                }
+            }
+        }
+    }
+    //deal with CPU
+    // int idx(0);
+    for (auto ddr=comp_cpu_pin.begin(); ddr!=comp_cpu_pin.end(); ddr++) {
+        // printf("idx: %d\n",idx);
+        // int idy(0);
+        for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
+            // printf("idy: %d\n",idy);
+            int dist(1e8);
+            Pin P=pin_list.at(*pid);
+            if (abs (pin_list.at(*pid).real_pos.X - b.left) < dist) {
+                dist = abs (pin_list.at(*pid).real_pos.X - b.left);
+                pin_list.at(*pid).escape_dir = LEFT;
+            }
+            if (abs (pin_list.at(*pid).real_pos.X - b.right) < dist) {
+                dist = abs (pin_list.at(*pid).real_pos.X - b.right);
+                pin_list.at(*pid).escape_dir = RIGHT;
+            }
+            if (abs (pin_list.at(*pid).real_pos.Y - b.bot) < dist) {
+                dist = abs (pin_list.at(*pid).real_pos.Y - b.bot);
+                pin_list.at(*pid).escape_dir = BOT;
+            }
+            if (abs (pin_list.at(*pid).real_pos.Y - b.top) < dist) {
+                dist = abs (pin_list.at(*pid).real_pos.Y - b.top);
+                pin_list.at(*pid).escape_dir = TOP;
+            }
+            // idy++;
+        }
+        map<int,int> count;
+        for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
+            count[pin_list.at(*pid).escape_dir]++;
+        }
+        int e_d;
+        while (true) {
+        int max(0);
+            for (auto dir=count.begin(); dir!=count.end(); dir++) {
+                printf("dir: %d count:%d\n",dir->first,dir->second);
+                if (dir->second>max) {
+                    max = dir->second;
+                    e_d = dir->first;
+                }
+            }
+            if (e_d==TOP) {
+                if (abs(comp_boundary.at(CPU_name).top-total_boundary.top)<coarse_y_length/2) {
+                    count.at(e_d)=0;
+                }
+                else
+                    break;
+            }   
+            else if (e_d==BOT) {
+                if (abs(comp_boundary.at(CPU_name).bot-total_boundary.bot)<coarse_y_length/2) {
+                    count.at(e_d)=0;
+                }
+                else
+                    break;
+            }   
+            else if (e_d==RIGHT) {
+                if (abs(comp_boundary.at(CPU_name).right-total_boundary.right)<coarse_x_length/2) {
+                    count.at(e_d)=0;
+                }
+                else
+                    break;
+            }   
+            else if(e_d==LEFT){
+                if (abs(comp_boundary.at(CPU_name).left-total_boundary.left)<coarse_x_length/2) {
+                    count.at(e_d)=0;
+                }
+                else
+                    break;
+            }      
+        }
+
+        for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
+            pin_list.at(*pid).escape_dir=e_d;
+            // printf("net %d in cpu pin escape direction:%d\n",pin_list.at(*pid).net_ID, e_d);
+        }
+        printf("CPU(%s) escape direction : %d\n",ddr->first.c_str(), e_d);
+        cpu_escape[ddr->first] = e_d;
+        // idx++;
+    }
+        
+    //deal with DDR pin
+    for (auto comp=comp_ddr_pin.begin(); comp!=comp_ddr_pin.end(); comp++){
+        Boundary DATA_B, ADR_b;
+        //if only 1 ddr, the code must be wrong
+        for(auto pid=comp->second.begin(); pid!=comp->second.end(); pid++) {
+            if (net_list.at(pin_list.at(*pid).net_ID).is2pin_net) {
+                if (pin_list.at(*pid).real_pos.X>DATA_B.right)
+                    DATA_B.right = pin_list.at(*pid).real_pos.X;
+                if (pin_list.at(*pid).real_pos.X<DATA_B.left)
+                    DATA_B.left = pin_list.at(*pid).real_pos.X;
+                if (pin_list.at(*pid).real_pos.Y>DATA_B.top)
+                    DATA_B.top = pin_list.at(*pid).real_pos.Y;
+                if (pin_list.at(*pid).real_pos.Y<DATA_B.bot)
+                    DATA_B.bot = pin_list.at(*pid).real_pos.Y;
+            }
+            else {
+                if (pin_list.at(*pid).real_pos.X>ADR_b.right)
+                    ADR_b.right = pin_list.at(*pid).real_pos.X;
+                if (pin_list.at(*pid).real_pos.X<ADR_b.left)
+                    ADR_b.left = pin_list.at(*pid).real_pos.X;
+                if (pin_list.at(*pid).real_pos.Y>ADR_b.top)
+                    ADR_b.top = pin_list.at(*pid).real_pos.Y;
+                if (pin_list.at(*pid).real_pos.Y<ADR_b.bot)
+                    ADR_b.bot = pin_list.at(*pid).real_pos.Y;
+            }
+        }
+        printf("DATA Boundary:(%d,%d)~(%d,%d)\nADDR Boundary:(%d,%d)~(%d,%d)\n",DATA_B.left,DATA_B.bot,DATA_B.right,DATA_B.top,
+                                                                                ADR_b.left ,ADR_b.bot ,ADR_b.right ,ADR_b.top);
+        if (DATA_B.top < ADR_b.bot) 
+            ddr_escape[comp->first]=BOT;
+        if (DATA_B.bot > ADR_b.top) 
+            ddr_escape[comp->first]=TOP;
+        if (DATA_B.right < ADR_b.left) 
+            ddr_escape[comp->first]=LEFT;
+        if (DATA_B.left > ADR_b.right) 
+            ddr_escape[comp->first]=RIGHT;
+    }
+    for (auto comp=ddr_escape.begin(); comp!=ddr_escape.end(); comp++) {
+            printf("comp:%s, escape direct: %d\n",comp->first.c_str(),comp->second);
+        }
     for (auto g=merged_group.begin(); g!=merged_group.end(); g++) {
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            if (!net_list.at(*nid).is2pin_net)
+                continue;
+            for (auto pid=net_list.at(*nid).net_pinID.begin();pid!=net_list.at(*nid).net_pinID.end();pid++) {
+                
+                auto p=&pin_list.at(*pid);
+                if (!p->CPU_side) {
+                    p->escape_dir=ddr_escape.at(p->comp_name);
+                }
+            }
+        }
+    }
+}        
+
+/*void BLMR::planning() {
+    //deal with CPU pin
+    for (auto g=merged_group.begin(); g!=merged_group.end(); g++) {
+
+        // if (g!=merged_group.begin())
+        //     break;
         map<string, vector<int>> comp_cpu_pin;
         map<string, vector<int>> comp_ddr_pin;
         Boundary b=comp_boundary.at(CPU_name);
@@ -154,6 +429,7 @@ void BLMR::planning() {
             for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
                 // printf("idy: %d\n",idy);
                 int dist(1e8);
+                Pin P=pin_list.at(*pid);
                 if (abs (pin_list.at(*pid).real_pos.X - b.left) < dist) {
                     dist = abs (pin_list.at(*pid).real_pos.X - b.left);
                     pin_list.at(*pid).escape_dir = LEFT;
@@ -176,14 +452,46 @@ void BLMR::planning() {
             for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
                 count[pin_list.at(*pid).escape_dir]++;
             }
-            int max(0);
             int e_d;
-            for (auto dir=count.begin(); dir!=count.end(); dir++) {
-                if (dir->second>max) {
-                    max = dir->second;
-                    e_d = dir->first;
+            while (true) {
+            int max(0);
+                for (auto dir=count.begin(); dir!=count.end(); dir++) {
+                    printf("dir: %d count:%d\n",dir->first,dir->second);
+                    if (dir->second>max) {
+                        max = dir->second;
+                        e_d = dir->first;
+                    }
                 }
+                if (e_d==TOP) {
+                    if (abs(comp_boundary.at(CPU_name).top-total_boundary.top)<coarse_y_length/2) {
+                        count.at(e_d)=0;
+                    }
+                    else
+                        break;
+                }   
+                else if (e_d==BOT) {
+                    if (abs(comp_boundary.at(CPU_name).bot-total_boundary.bot)<coarse_y_length/2) {
+                        count.at(e_d)=0;
+                    }
+                    else
+                        break;
+                }   
+                else if (e_d==RIGHT) {
+                    if (abs(comp_boundary.at(CPU_name).right-total_boundary.right)<coarse_x_length/2) {
+                        count.at(e_d)=0;
+                    }
+                    else
+                        break;
+                }   
+                else if(e_d==LEFT){
+                    if (abs(comp_boundary.at(CPU_name).left-total_boundary.left)<coarse_x_length/2) {
+                        count.at(e_d)=0;
+                    }
+                    else
+                        break;
+                }      
             }
+
             for (auto pid=ddr->second.begin(); pid!=ddr->second.end(); pid++) {
                 pin_list.at(*pid).escape_dir=e_d;
                 // printf("net %d in cpu pin escape direction:%d\n",pin_list.at(*pid).net_ID, e_d);
@@ -229,14 +537,27 @@ void BLMR::planning() {
             if (DATA_B.left > ADR_b.right) 
                 ddr_escape[comp->first]=RIGHT;
         }
-        for (auto comp=ddr_escape.begin(); comp!=ddr_escape.end(); comp++) {
+
+    }        
+    for (auto comp=ddr_escape.begin(); comp!=ddr_escape.end(); comp++) {
             printf("comp:%s, escape direct: %d\n",comp->first.c_str(),comp->second);
+        }
+    for (auto g=merged_group.begin(); g!=merged_group.end(); g++) {
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            if (!net_list.at(*nid).is2pin_net)
+                continue;
+            for (auto pid=net_list.at(*nid).net_pinID.begin();pid!=net_list.at(*nid).net_pinID.end();pid++) {
+                
+                auto p=&pin_list.at(*pid);
+                if (!p->CPU_side) {
+                    p->escape_dir=ddr_escape.at(p->comp_name);
+                }
+            }
         }
     }
 
-
 }
-
+*/
 void BLMR::partition() {
     planning();
     // partition_by_position(); 
@@ -246,7 +567,7 @@ void BLMR::partition() {
     //     LCS_group=partition_by_LCS(mg);
     // }
     vector<vector<int>> rest_of_net(merged_group.size());
-    vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> LCS_group=partition_by_LCS(merged_group,rest_of_net);
+    vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> LCS_group=partition_by_LCS(all_group_net,rest_of_net);
     for (auto it1=LCS_group.begin(); it1!=LCS_group.end(); it1++) {
         CPU_LCS_group.push_back(vector<vector<pair<int,int>>>());
         DDR_LCS_group.push_back(vector<vector<pair<int,int>>>());
@@ -280,7 +601,8 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
         vector<int> location1, location2;
         vector<int> ED_table1, ED_table2;
         map<string, vector<Pin*>> ddr_ddrpin, ddr_cpupin;
-        map<string, vector<vector<Pin*>>> ddr_sort_ddrpin, ddr_sort_cpupin;
+        map<string, vector<vector<Pin*>>> ddr_sort_ddrpin;//, ddr_sort_cpupin
+        vector<vector<Pin*>> sort_cpupin;
         vector<string> ddr_order;
         vector<vector<int>> list1, list2;        
         vector<pair<int,int>> dp_list;
@@ -293,6 +615,7 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
             if (!net_list.at(*nid).is2pin_net)
                 continue;
             for (auto pid=net_list.at(*nid).net_pinID.begin(); pid!=net_list.at(*nid).net_pinID.end(); pid++) {
+                auto p=pin_list.at(*pid);
                 if (pin_list.at(*pid).CPU_side)
                     ddr_cpupin[pin_list.at(*pid).ddr_name].push_back(&pin_list.at(*pid));
                 else
@@ -302,9 +625,53 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
         //deal with ddr position sort
         ddr_order = sort_ddr(ddr_ddrpin);
         //sort pin in CPU/DDR by their escape direction
-        sort_LCS_input(ddr_ddrpin,ddr_cpupin,ddr_sort_ddrpin,ddr_sort_cpupin);
-        
+        sort_LCS_input(ddr_ddrpin,ddr_cpupin,ddr_sort_ddrpin,sort_cpupin);
+        printf("list1: ");
+        for (auto sameline_pin=sort_cpupin.begin(); sameline_pin!=sort_cpupin.end(); sameline_pin++) {
+            list1.push_back(vector<int>());
+            ED_table1.push_back((sameline_pin->at(0))->escape_dir);
+            if ((sameline_pin->at(0))->escape_dir == TOP || (sameline_pin->at(0))->escape_dir == BOT) {
+                location1.push_back((sameline_pin->at(0))->real_pos.X);
+            }
+            else {
+                location1.push_back((sameline_pin->at(0))->real_pos.Y);
+            }
+            for (auto double_pin_it=sameline_pin->begin(); double_pin_it!=sameline_pin->end(); double_pin_it++) {
+                list1.back().push_back((*double_pin_it)->net_ID);
+                printf("%d ",(*double_pin_it)->net_ID);
+            }
+
+        }  printf("\n");
+        int start(0);
         for (auto ddr=ddr_order.begin(); ddr!=ddr_order.end(); ddr++) {
+            if (cpu_escape.at(*ddr) ==BOT) {
+                start++;
+            }
+            else
+                break;
+        }
+        int temp=ddr_order.size();
+        if (temp!=0 && start!=0) {
+            vector<string> new_ddr_order;
+            // if (start%temp==0) {
+            //     for (auto it=ddr_order.rbegin(); it!=ddr_order.rend(); it++)
+            //         new_ddr_order.push_back(*it);
+                
+            // }
+            // else {
+                for (int s=start; s!=start-1;) {
+                    new_ddr_order.push_back(ddr_order.at(s)); 
+                    s++;
+                    s%=temp;
+                }
+                new_ddr_order.push_back(ddr_order.at(start-1));
+            // }
+            ddr_order.clear();             
+            ddr_order=new_ddr_order;   
+        }
+        for (auto ddr=ddr_order.begin(); ddr!=ddr_order.end(); ddr++) {
+            
+            /*printf("list1: ");
             for (auto it1=ddr_sort_cpupin.at(*ddr).begin(); it1!=ddr_sort_cpupin.at(*ddr).end(); it1++) {
                 list1.push_back(vector<int>());
                 // printf("\n");
@@ -318,12 +685,14 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
                 else {
                     location1.push_back((it1->at(0))->real_pos.Y);
                 }
+                
                 for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
                     list1.back().push_back((*it2)->net_ID);
                     printf("%d ",(*it2)->net_ID);
                 }
             }
-                printf("\n");
+            printf("\n");*/
+                printf("list2: ");
             for (auto it1=ddr_sort_ddrpin.at(*ddr).begin(); it1!=ddr_sort_ddrpin.at(*ddr).end(); it1++) {
                 list2.push_back(vector<int>());
                 if (it1->size()==0) {
@@ -344,6 +713,7 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
                 else {
                     location2.push_back((it1->at(0))->real_pos.Y);
                 }
+                
                 for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
                     list2.back().push_back((*it2)->net_ID);
                     printf("%d ",(*it2)->net_ID);
@@ -390,8 +760,17 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
             list1.clear(); list2.clear();
             list1 = temp_list1;
             list2 = temp_list2;
+            if (list1.size()==0 && list2.size()==0)
+                break;
             ans.at(idx_g).push_back(LCS(list1, list2, dp_list,ED_table1, ED_table2, location1, location2));
         }
+        for (auto nid_shift=ans.at(idx_g).back().first.begin(); nid_shift!=ans.at(idx_g).back().first.end(); nid_shift++) {
+            used_net.insert(nid_shift->first);
+        }
+        printf("used_net:\n");
+        for (auto un=used_net.begin(); un!=used_net.end(); un++) {
+            printf("%d ",*un);
+        }printf("\n");
         for (auto nid=g->begin(); nid!=g->end(); nid++) {
             if (used_net.find(*nid)==used_net.end()) {
                 rest_of_net.at(idx_g).push_back(*nid);
@@ -403,32 +782,185 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> BLMR::partitio
 }
 
 void BLMR::update_escape_routing_length() {
-    // for (auto g=LCS_group.begin(); g!=LCS_group.end()) {
-    //     for (auto nid_shift=g->begin(); nid!=g->end(); nid_shift++) {
-    //         if (!net_list.at(nid->first).is2pin_net)
-    //             continue;
-    //         for (auto pid=net_list.at(nid->first).net_pinID.begin();pid!=net_list.at(*nid->first).net_pinID.end();pid++) {
-    //             auto p=pin_list.at(*pid);
-    //             if (p.escape_dir==RIGHT) {
-    //                 double length = comp_boundary.at(p.ddr).right-p.real_pos.X;
-    //                 p.esti_escape_routing_length = lentgh;
+    int pitch=MIN_SPACING+WIRE_WIDTH;
+    for (auto g=CPU_LCS_group.begin(); g!=CPU_LCS_group.end();g++) {
+        int layer(0);
+        for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+            for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                if (!net_list.at(nid_shift->first).is2pin_net)
+                    continue;
+                Pin *p;
+                if (pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0)).CPU_side) 
+                    p=&pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0));
+                else 
+                    p=&pin_list.at(net_list.at(nid_shift->first).net_pinID.at(1));
+
+                if (p->escape_dir==RIGHT) {
+                    int l = comp_boundary.at(p->comp_name).right-p->real_pos.X;
+                    p->esti_escape_routing_length = l;
+                    int new_y=p->real_pos.Y+nid_shift->second*pitch*pitch_extend_coe;
+                    int top_bdy=(p->coarse_coor.Y+1)*coarse_y_length+total_boundary.bot;
+                    int bot_bdy=(p->coarse_coor.Y)*coarse_y_length+total_boundary.bot;
+                    if (new_y > top_bdy) {
+                        int top_coor = ((p->real_pos.Y+nid_shift->second*pitch*pitch_extend_coe)-total_boundary.bot)/coarse_y_length;
+                        int right_coor = (comp_boundary.at(CPU_name).right-total_boundary.left)/coarse_x_length;
+                        for (int y=p->coarse_coor.Y; y<top_coor; y++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,p->coarse_coor.X,y));
+                        }
+                        for (int x=p->coarse_coor.X; x<=right_coor; x++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,top_coor));
+                        }
+                    }
+                    else if (new_y < bot_bdy) {
+                        int bot_coor = ((p->real_pos.Y+nid_shift->second*pitch*pitch_extend_coe)-total_boundary.bot)/coarse_y_length;
+                        int right_coor = (comp_boundary.at(CPU_name).right-total_boundary.left)/coarse_x_length;
+                        for (int y=p->coarse_coor.Y; y>bot_coor; y--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,p->coarse_coor.X,y));
+                        }
+                        for (int x=p->coarse_coor.X; x<=right_coor; x++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,bot_coor));
+                        }
+                    }
+                }
+                else if (p->escape_dir==LEFT) {
+                    int l = p->real_pos.X-comp_boundary.at(p->comp_name).left;
+                    p->esti_escape_routing_length = l;
+                    int new_y=p->real_pos.Y+nid_shift->second*pitch*pitch_extend_coe;
+                    int top_bdy=(p->coarse_coor.Y+1)*coarse_y_length+total_boundary.bot;
+                    int bot_bdy=(p->coarse_coor.Y)*coarse_y_length+total_boundary.bot;
+                    if (new_y > top_bdy) {
+                        int top_coor = (new_y-total_boundary.bot)/coarse_y_length;
+                        int left_coor = (comp_boundary.at(CPU_name).left-total_boundary.left)/coarse_x_length;
+                        for (int y=p->coarse_coor.Y; y<top_coor; y++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,p->coarse_coor.X,y));
+                        }
+                        for (int x=p->coarse_coor.X; x>=left_coor; x--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,top_coor));
+                        }
+                    }
+                    else if (new_y < bot_bdy) {
+                        int bot_coor = (new_y-total_boundary.bot)/coarse_y_length;
+                        int left_coor = (comp_boundary.at(CPU_name).left-total_boundary.left)/coarse_x_length;
+                        for (int y=p->coarse_coor.Y; y>bot_coor; y--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,p->coarse_coor.X,y));
+                        }
+                        for (int x=p->coarse_coor.X; x>=left_coor; x--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,bot_coor));
+                        }
+                    }
+                }
+                else if (p->escape_dir==TOP) {
+                    int l = comp_boundary.at(p->comp_name).top-p->real_pos.Y;
+                    p->esti_escape_routing_length = l;
+                    int new_x=p->real_pos.X+nid_shift->second*pitch*pitch_extend_coe;
+                    int right_bdy=(p->coarse_coor.X+1)*coarse_x_length+total_boundary.left;
+                    int left_bdy=(p->coarse_coor.X)*coarse_x_length+total_boundary.left;
+                    if (new_x > right_bdy) {
+                        int top_coor = (comp_boundary.at(CPU_name).top-total_boundary.bot)/coarse_y_length;
+                        int right_coor = (new_x-total_boundary.left)/coarse_x_length;
+                        for (int x=p->coarse_coor.X; x<right_coor; x++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,p->coarse_coor.X));
+                        }
+                        for (int y=p->coarse_coor.Y; y<=top_coor; y++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,right_coor,y));
+                        }
+                    }
+                    else if (new_x < left_bdy) {
+                        int top_coor = (comp_boundary.at(CPU_name).bot-total_boundary.bot)/coarse_y_length;
+                        int left_coor = (new_x-total_boundary.left)/coarse_x_length;
+                        for (int x=p->coarse_coor.X; x>left_coor; x--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,p->coarse_coor.Y));
+                        }
+                        for (int y=p->coarse_coor.Y; y<=top_coor; y++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,left_coor,y));
+                        }
+                    }
+                }
+                else if (p->escape_dir==BOT) {
+                    int l = p->real_pos.Y-comp_boundary.at(p->comp_name).bot;
+                    p->esti_escape_routing_length = l;
+                    int new_x=p->real_pos.X+nid_shift->second*pitch*pitch_extend_coe;
+                    int right_bdy=(p->coarse_coor.X+1)*coarse_x_length+total_boundary.left;
+                    int left_bdy=(p->coarse_coor.X)*coarse_x_length+total_boundary.left;
+                    if (new_x > right_bdy) {
+                        int bot_coor = (comp_boundary.at(CPU_name).bot-total_boundary.bot)/coarse_y_length;
+                        int right_coor = (new_x-total_boundary.left)/coarse_x_length;
+                        for (int x=p->coarse_coor.X; x<right_coor; x++) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,p->coarse_coor.X));
+                        }
+                        for (int y=p->coarse_coor.Y; y>=bot_coor; y--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,right_coor,y));
+                        }
+                    }
+                    else if (new_x < left_bdy) {
+                        int bot_coor = (comp_boundary.at(CPU_name).bot-total_boundary.bot)/coarse_y_length;
+                        int left_coor = (new_x-total_boundary.left)/coarse_x_length;
+                        for (int x=p->coarse_coor.X; x>left_coor; x--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,x,p->coarse_coor.Y));
+                        }
+                        for (int y=p->coarse_coor.Y; y>=bot_coor; y--) {
+                            p->ER_coarse_cell.push_back(Coor(layer,left_coor,y));
+                        }
+                    }
+                }
+                p->esti_escape_routing_length+=abs(nid_shift->second*pitch);
+                p->shift = nid_shift->second;
+
+            }
+            layer++;
+        }
+
+    }    
+    for (auto g=DDR_LCS_group.begin(); g!=DDR_LCS_group.end();g++) {
+        for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+            for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                if (!net_list.at(nid_shift->first).is2pin_net)
+                    continue;           
+                Pin *p;
+                if (!pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0)).CPU_side) 
+                    p=&pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0));
+                else 
+                    p=&pin_list.at(net_list.at(nid_shift->first).net_pinID.at(1));
+
+                p->escape_dir = ddr_escape.at(p->comp_name);
+                if (p->escape_dir==RIGHT) {
+                    int l = comp_boundary.at(p->comp_name).right-p->real_pos.X;
+                    p->esti_escape_routing_length = l;
+                }
+                else if (p->escape_dir==LEFT) {
+                    int l = p->real_pos.X-comp_boundary.at(p->comp_name).left;
+                    p->esti_escape_routing_length = l;
+                }
+                else if (p->escape_dir==TOP) {
+                    int t(comp_boundary.at(p->comp_name).top); 
+                    int l = comp_boundary.at(p->comp_name).top-p->real_pos.Y;
+                    p->esti_escape_routing_length = l;
+                }
+                else if (p->escape_dir==BOT) {
+                    int l = p->real_pos.Y-comp_boundary.at(p->comp_name).bot;
+                    p->esti_escape_routing_length = l;
+                }
+                p->shift = nid_shift->second;
+                p->esti_escape_routing_length+=abs(nid_shift->second*pitch);
+                
+            }
+        }
+
+    }
+    // for (auto g=CPU_LCS_group.begin(); g!=CPU_LCS_group.end(); g++) {
+    //     for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+    //         for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+    //             printf("net ID %d\n",nid_shift->first);
+    //             for (auto pid=net_list.at(nid_shift->first).net_pinID.begin(); pid!=net_list.at(nid_shift->first).net_pinID.end(); pid++) {
+    //                 auto p=pin_list.at(*pid);
+    //                 printf ("pin %s(%d) shift %d esti length: %d \n", p.pin_name.c_str(),*pid, p.shift,p.esti_escape_routing_length);
     //             }
-    //             else if (p.escape_dir==LEFT) {
-    //                 double length = p.real_pos.X-comp_boundary.at(p.ddr).left;
-    //                 p.esti_escape_routing_length = lentgh;
-    //             }
-    //             else if (p.escape_dir==TOP) {
-    //                 double length = comp_boundary.at(p.ddr).top-p.real_pos.Y;
-    //                 p.esti_escape_routing_length = lentgh;
-    //             }
-    //             else if (p.escape_dir==BOT) {
-    //                 double length = p.real_pos.Y-comp_boundary.at(p.ddr).bot;
-    //                 p.esti_escape_routing_length = lentgh;
-    //             }
+    //             printf("\n");
     //         }
     //     }
     // }
 }
+
 void BLMR::partition_by_size(std::vector<std::vector<int>>& group) {
 }
 
@@ -632,65 +1164,95 @@ void BLMR::Astar(vector<vector<vector<Cell>>>& GRmap, pair<int,int> star, int ne
 
 vector<string> BLMR::sort_ddr(const map<string, vector<Pin*>>& ddr_ddrpin) {
         //deal with ddr position sort
-
+        printf("Function sort_ddr:\n");
         vector<string> ddr_yx_bdy;
         vector<string> ddr_xy_bdy;
-        
-        {
-            vector<Boundary> ddr_bdy;
-            for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
-                ddr_bdy.push_back(comp_boundary.at(ddr->first));
+        vector<string> ddr_sort;
+        map<int,vector<Boundary>> escape_dir_ddr;
+        for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
+            escape_dir_ddr[ddr_escape.at(ddr->first)].push_back(comp_boundary.at(ddr->first));
+        }
+        for (auto dir=escape_dir_ddr.begin(); dir!=escape_dir_ddr.end(); dir++) {
+            if (dir->first==TOP) {
+                sort(dir->second.begin(), dir->second.end(), Bdy_less_x);
             }
-            sort(ddr_bdy.begin(),ddr_bdy.end(), Bdy_greater_x);
-            vector<vector<Boundary>> ddr_x_bdy;
-            int left(-100);
-            for (auto ddr_b=ddr_bdy.begin(); ddr_b!=ddr_bdy.end(); ddr_b++) {
-                if (ddr_b->left-left >= tolerance) {
-                    ddr_x_bdy.push_back(vector<Boundary>());
-                }
-                left = ddr_b->left;
-                ddr_x_bdy.back().push_back(*ddr_b);
+            else if (dir->first==BOT) {
+                sort(dir->second.begin(), dir->second.end(), Bdy_greater_x);
             }
-            for (auto ddr=ddr_x_bdy.begin(); ddr!=ddr_x_bdy.end(); ddr++) {
-                sort(ddr->begin(),ddr->end(), Bdy_greater_y);
+            else if (dir->first==RIGHT) {
+                sort(dir->second.begin(), dir->second.end(), Bdy_greater_y);
             }
-            for (auto ddr_x=ddr_x_bdy.begin(); ddr_x!=ddr_x_bdy.end(); ddr_x++) {
-                for (auto ddr_y=ddr_x->begin(); ddr_y!=ddr_x->end(); ddr_y++) {
-                    ddr_xy_bdy.push_back(ddr_y->name);
-                }
+            else if (dir->first==LEFT) {
+                sort(dir->second.begin(), dir->second.end(), Bdy_less_y);
+            }
+            else {
+                printf("something wrong\n");
             }
         }
-        {
-            vector<Boundary> ddr_bdy;
-            for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
-                ddr_bdy.push_back(comp_boundary.at(ddr->first));
-            }
-            sort(ddr_bdy.begin(),ddr_bdy.end(), Bdy_greater_y);
-            vector<vector<Boundary>> ddr_y_bdy;
-            int bot(-100);
-            for (auto ddr_b=ddr_bdy.begin(); ddr_b!=ddr_bdy.end(); ddr_b++) {
-                if (ddr_b->bot-bot >= tolerance) {
-                    ddr_y_bdy.push_back(vector<Boundary>());
-                }
-                bot = ddr_b->bot;
-                ddr_y_bdy.back().push_back(*ddr_b);
-            }
-            for (auto ddr=ddr_y_bdy.begin(); ddr!=ddr_y_bdy.end(); ddr++) {
-                sort(ddr->begin(),ddr->end(), Bdy_greater_x);
-            }
-            for (auto ddr_y=ddr_y_bdy.begin(); ddr_y!=ddr_y_bdy.end(); ddr_y++) {
-                for (auto ddr_x=ddr_y->begin(); ddr_x!=ddr_y->end(); ddr_x++) {
-                    ddr_yx_bdy.push_back(ddr_x->name);
-                }
+        for (auto dir=escape_dir_ddr.begin(); dir!=escape_dir_ddr.end(); dir++) {
+            for (auto ddr=dir->second.begin(); ddr!=dir->second.end(); ddr++) {
+                ddr_sort.push_back(ddr->name);
             }
         }
-        for (int i=0; i<ddr_yx_bdy.size(); i++) {
-            printf("%s ",ddr_yx_bdy.at(i).c_str());
-            if (ddr_yx_bdy.at(i)!=ddr_xy_bdy.at(i))
-                printf("ddr order need chech!!!\n");
+        printf("ddr order: ");
+        for (int i=0; i<ddr_sort.size(); i++) {
+            printf("%s ",ddr_sort.at(i).c_str());
+            // if (ddr_yx_bdy.at(i)!=ddr_xy_bdy.at(i))
+            //     printf("ddr order need chech!!!\n");
         }
         printf("\n");
-        return ddr_yx_bdy;
+        return ddr_sort;
+        // {
+        //     vector<Boundary> ddr_bdy;
+        //     for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
+        //         ddr_bdy.push_back(comp_boundary.at(ddr->first));
+        //     }
+        //     sort(ddr_bdy.begin(),ddr_bdy.end(), Bdy_greater_x);
+        //     vector<vector<Boundary>> ddr_x_bdy;
+        //     int left(-100);
+        //     for (auto ddr_b=ddr_bdy.begin(); ddr_b!=ddr_bdy.end(); ddr_b++) {
+        //         if (ddr_b->left-left >= tolerance) {
+        //             ddr_x_bdy.push_back(vector<Boundary>());
+        //         }
+        //         left = ddr_b->left;
+        //         ddr_x_bdy.back().push_back(*ddr_b);
+        //     }
+        //     for (auto ddr=ddr_x_bdy.begin(); ddr!=ddr_x_bdy.end(); ddr++) {
+        //         sort(ddr->begin(),ddr->end(), Bdy_greater_y);
+        //     }
+        //     for (auto ddr_x=ddr_x_bdy.begin(); ddr_x!=ddr_x_bdy.end(); ddr_x++) {
+        //         for (auto ddr_y=ddr_x->begin(); ddr_y!=ddr_x->end(); ddr_y++) {
+        //             ddr_xy_bdy.push_back(ddr_y->name);
+        //         }
+        //     }
+        // }
+        // {
+        //     vector<Boundary> ddr_bdy;
+        //     for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
+        //         ddr_bdy.push_back(comp_boundary.at(ddr->first));
+        //     }
+        //     sort(ddr_bdy.begin(),ddr_bdy.end(), Bdy_greater_y);
+        //     // for (auto it=ddr_bdy.begin(); it!=ddr_bdy.end(); it++) {
+        //     //     printf("%s ",it->name.c_str());
+        //     // }printf("\n");
+        //     vector<vector<Boundary>> ddr_y_bdy;
+        //     int bot(-100000);
+        //     for (auto ddr_b=ddr_bdy.begin(); ddr_b!=ddr_bdy.end(); ddr_b++) {
+        //         if (ddr_b->bot-bot >= tolerance*50) {
+        //             ddr_y_bdy.push_back(vector<Boundary>());
+        //         }
+        //         bot = ddr_b->bot;
+        //         ddr_y_bdy.back().push_back(*ddr_b);
+        //     }
+        //     for (auto ddr=ddr_y_bdy.begin(); ddr!=ddr_y_bdy.end(); ddr++) {
+        //             sort(ddr->begin(),ddr->end(), Bdy_greater_x);
+        //     }
+        //     for (auto ddr_y=ddr_y_bdy.begin(); ddr_y!=ddr_y_bdy.end(); ddr_y++) {
+        //         for (auto ddr_x=ddr_y->begin(); ddr_x!=ddr_y->end(); ddr_x++) {
+        //             ddr_yx_bdy.push_back(ddr_x->name);
+        //         }
+        //     }
+        // }
 }
 
 void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, vector<Pin*>>& ddr_cpupin, map<string, vector<vector<Pin*>>>& ddr_sort_ddrpin, map<string, vector<vector<Pin*>>>& ddr_sort_cpupin){
@@ -724,6 +1286,7 @@ void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, v
                 if ((*double_it_p)->real_pos.Y-bot >= tolerance) {
                     ddr_sort_ddrpin[ddr->first].push_back(vector<Pin*>());
                 }
+                Pin P=*(*double_it_p);
                 bot = (*double_it_p)->real_pos.Y;
                 ddr_sort_ddrpin[ddr->first].back().push_back(*double_it_p);
             }
@@ -743,13 +1306,18 @@ void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, v
     for (auto ddr=ddr_cpupin.begin(); ddr!=ddr_cpupin.end(); ddr++) {
         // printf("sort CPU pin\n");
         if ((*(ddr->second.begin()))->escape_dir == TOP || (*(ddr->second.begin()))->escape_dir == BOT) {
-            sort(ddr->second.begin(),ddr->second.end(), pin_greater_x);
+            if (((*(ddr->second.begin()))->escape_dir == BOT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==RIGHT) ||
+                ((*(ddr->second.begin()))->escape_dir == TOP && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==LEFT))
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_x);
+            else
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_x);
             if ((*(ddr->second.begin()))->escape_dir != TOP && (*(ddr->second.begin()))->escape_dir != BOT) {
                 printf("pin escape not identical!\n");
             }
             int left(-100);
             for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
-                if ((*double_it_p)->real_pos.X-left >= tolerance) {
+                Pin P = *(*double_it_p);
+                if (abs((*double_it_p)->real_pos.X-left) >= tolerance) {
                     ddr_sort_cpupin[ddr->first].push_back(vector<Pin*>());
                 }
                 left=(*double_it_p)->real_pos.X;
@@ -801,15 +1369,20 @@ void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, v
             }
         }
         else {
-            sort(ddr->second.begin(),ddr->second.end(), pin_greater_y);
+            if (((*(ddr->second.begin()))->escape_dir == RIGHT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==BOT) ||
+                ((*(ddr->second.begin()))->escape_dir == LEFT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==TOP))
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_y);
+            else
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_y);
             if ((*(ddr->second.begin()))->escape_dir != RIGHT && (*(ddr->second.begin()))->escape_dir != LEFT) {
                 printf("pin escape not identical!\n");
             }
             int bot(-100);
             for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
-                if ((*double_it_p)->real_pos.Y-bot >= tolerance) {
+                if (abs((*double_it_p)->real_pos.Y-bot) >= tolerance) {
                     ddr_sort_cpupin[ddr->first].push_back(vector<Pin*>());
                 }
+                Pin P = *(*double_it_p);
                 bot=(*double_it_p)->real_pos.Y;
                 ddr_sort_cpupin[ddr->first].back().push_back(*double_it_p);
             }
@@ -829,15 +1402,667 @@ void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, v
         }
     }
 }
+void BLMR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, vector<Pin*>>& ddr_cpupin, map<string, vector<vector<Pin*>>>& ddr_sort_ddrpin, vector<vector<Pin*>>& sort_cpupin){
+    //sort ddr position by escape direction
+    for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
+        printf("sort_LCS_input ddr:%s\n",ddr->first.c_str());
+        if (ddr_escape.at(ddr->first)==TOP || ddr_escape.at(ddr->first)==BOT) {
+            if (ddr_escape.at(ddr->first) == TOP){//(ddr_escape.at(ddr->first) == TOP && cpu_escape.at((*(ddr->second.begin()))->ddr_name)==LEFT)
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_x);
+                int right(1e8);
+                for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                    if (abs((*double_it_p)->real_pos.X-right) >= tolerance) {
+                        ddr_sort_ddrpin[ddr->first].push_back(vector<Pin*>());
+                    }
+                    right = (*double_it_p)->real_pos.X;
+                    ddr_sort_ddrpin[ddr->first].back().push_back(*double_it_p);
+                }   
+                for (auto x_pin_group=ddr_sort_ddrpin[ddr->first].begin(); x_pin_group!=ddr_sort_ddrpin[ddr->first].end(); x_pin_group++) {
+                    sort(x_pin_group->begin(), x_pin_group->end(), pin_less_y);
+                }
+            }
+            else {
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_x);
+                int left(-100);
+                for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                    if (abs((*double_it_p)->real_pos.X-left) >= tolerance) {
+                        ddr_sort_ddrpin[ddr->first].push_back(vector<Pin*>());
+                    }
+                    left = (*double_it_p)->real_pos.X;
+                    ddr_sort_ddrpin[ddr->first].back().push_back(*double_it_p);
+                } 
+  
+                for (auto x_pin_group=ddr_sort_ddrpin[ddr->first].begin(); x_pin_group!=ddr_sort_ddrpin[ddr->first].end(); x_pin_group++) {
+                    sort(x_pin_group->begin(), x_pin_group->end(), pin_greater_y);
+                }
+            }           
+        }
+        else {            
+            if (ddr_escape.at(ddr->first)== LEFT ) {
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_y);
+                int top(1000000);
+                for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                    if (abs((*double_it_p)->real_pos.Y-top) >= tolerance) {
+                        ddr_sort_ddrpin[ddr->first].push_back(vector<Pin*>());
+                    }
+                    Pin P=*(*double_it_p);
+                    top = (*double_it_p)->real_pos.Y;
+                    ddr_sort_ddrpin[ddr->first].back().push_back(*double_it_p);
+                }
+                for (auto y_pin_group=ddr_sort_ddrpin[ddr->first].begin(); y_pin_group!=ddr_sort_ddrpin[ddr->first].end(); y_pin_group++) {
+                    sort(y_pin_group->begin(), y_pin_group->end(), pin_greater_x);
+                }                
+            }
+            else {
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_y);
+                int bot(-100);
+                for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                    if (abs((*double_it_p)->real_pos.Y-bot) >= tolerance) {
+                        ddr_sort_ddrpin[ddr->first].push_back(vector<Pin*>());
+                    }
+                    Pin P=*(*double_it_p);
+                    bot = (*double_it_p)->real_pos.Y;
+                    ddr_sort_ddrpin[ddr->first].back().push_back(*double_it_p);
+                }
+                for (auto y_pin_group=ddr_sort_ddrpin[ddr->first].begin(); y_pin_group!=ddr_sort_ddrpin[ddr->first].end(); y_pin_group++) {
+                    sort(y_pin_group->begin(), y_pin_group->end(), pin_less_x);
+                }
+            }
+        }
+    }
+    //sort cpu position by escape direction
+    map<int, vector<Pin*>> dir_cpupin;
+    for (auto ddr=ddr_cpupin.begin(); ddr!=ddr_cpupin.end(); ddr++) {
+        if((*(ddr->second.begin()))->escape_dir==TOP) {
+            dir_cpupin[TOP].insert(dir_cpupin[TOP].begin(),ddr->second.begin(),ddr->second.end());
+        }
+        else if ((*(ddr->second.begin()))->escape_dir==BOT) {
+            dir_cpupin[BOT].insert(dir_cpupin[BOT].begin(),ddr->second.begin(),ddr->second.end());
+        }
+        else if ((*(ddr->second.begin()))->escape_dir==RIGHT) {
+            dir_cpupin[RIGHT].insert(dir_cpupin[RIGHT].begin(),ddr->second.begin(),ddr->second.end());
+        }
+        else if ((*(ddr->second.begin()))->escape_dir==LEFT) {
+            dir_cpupin[LEFT].insert(dir_cpupin[LEFT].begin(),ddr->second.begin(),ddr->second.end());
+        }
+    }
+    sort(dir_cpupin[TOP].begin(),dir_cpupin[TOP].end(), pin_greater_x);
+    sort(dir_cpupin[RIGHT].begin(),dir_cpupin[RIGHT].end(), pin_less_y);
+    sort(dir_cpupin[BOT].begin(),dir_cpupin[BOT].end(), pin_less_x);
+    sort(dir_cpupin[LEFT].begin(),dir_cpupin[LEFT].end(), pin_greater_y);
+    int bot(-100), top(1e8),left(-100), right(1e8),last_idx;
+    for (auto double_pin_it=dir_cpupin[LEFT].begin(); double_pin_it!=dir_cpupin[LEFT].end(); double_pin_it++) {
+        auto p=*double_pin_it;
+        if (abs(p->real_pos.Y-bot)>=tolerance) {
+            if (double_pin_it!=dir_cpupin[LEFT].begin())
+                sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_greater_x);
+            sort_cpupin.push_back(vector<Pin*>());
+        }
+        sort_cpupin.back().push_back(*double_pin_it);
+        bot=p->real_pos.Y;
 
+    }
+    if (sort_cpupin.size()!=0) {
+        sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_greater_x);
+        last_idx=sort_cpupin.size();
+    }
+    for (auto double_pin_it=dir_cpupin[TOP].begin(); double_pin_it!=dir_cpupin[TOP].end(); double_pin_it++) {
+        auto p=*double_pin_it;
+        if (abs(p->real_pos.X-left)>=tolerance) {
+            if (double_pin_it!=dir_cpupin[TOP].begin())
+                sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_less_y);
+            sort_cpupin.push_back(vector<Pin*>());
+        }
+        sort_cpupin.back().push_back(*double_pin_it);
+        left=p->real_pos.X;
+
+    }
+    
+    if (sort_cpupin.size()!=0 && sort_cpupin.size()!=last_idx) {
+        sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_less_y);
+        last_idx=sort_cpupin.size();
+    }
+    for (auto double_pin_it=dir_cpupin[RIGHT].begin(); double_pin_it!=dir_cpupin[RIGHT].end(); double_pin_it++) {
+        auto p=*double_pin_it;
+        if (abs(p->real_pos.Y-top)>=tolerance) {
+            if (double_pin_it!=dir_cpupin[RIGHT].begin())
+                sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_less_x);
+            sort_cpupin.push_back(vector<Pin*>());
+        }
+        sort_cpupin.back().push_back(*double_pin_it);
+        top=p->real_pos.Y;
+
+    }
+    
+    if (sort_cpupin.size()!=0 && sort_cpupin.size()!=last_idx) {
+        sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_less_x);
+        last_idx=sort_cpupin.size();
+    }
+    for (auto double_pin_it=dir_cpupin[BOT].begin(); double_pin_it!=dir_cpupin[BOT].end(); double_pin_it++) {
+        auto p=*double_pin_it;
+        if (abs(p->real_pos.X-right)>=tolerance) {
+            if (double_pin_it!=dir_cpupin[BOT].begin())
+                sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_greater_y);
+            sort_cpupin.push_back(vector<Pin*>());
+        }
+        sort_cpupin.back().push_back(*double_pin_it);
+        right=p->real_pos.X;
+
+    }
+    if (sort_cpupin.size()!=0 && sort_cpupin.size()!=last_idx) {
+        sort(sort_cpupin.back().begin(),sort_cpupin.back().end(),pin_greater_y);
+        last_idx=sort_cpupin.size();
+    }
+    
+    /*for (auto ddr=ddr_cpupin.begin(); ddr!=ddr_cpupin.end(); ddr++) {
+        // printf("sort CPU pin\n");
+        if ((*(ddr->second.begin()))->escape_dir == TOP || (*(ddr->second.begin()))->escape_dir == BOT) {
+            if (((*(ddr->second.begin()))->escape_dir == BOT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==RIGHT) ||
+                ((*(ddr->second.begin()))->escape_dir == TOP && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==LEFT))
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_x);
+            else
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_x);
+            if ((*(ddr->second.begin()))->escape_dir != TOP && (*(ddr->second.begin()))->escape_dir != BOT) {
+                printf("pin escape not identical!\n");
+            }
+            int left(-100);
+            for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                Pin P = *(*double_it_p);
+                if (abs((*double_it_p)->real_pos.X-left) >= tolerance) {
+                    ddr_sort_cpupin[ddr->first].push_back(vector<Pin*>());
+                }
+                left=(*double_it_p)->real_pos.X;
+                ddr_sort_cpupin[ddr->first].back().push_back(*double_it_p);
+            }
+            // printf("Only sort by X:\n");
+            // for (auto x_pin=ddr_sort_cpupin.begin(); x_pin!=ddr_sort_cpupin.end(); x_pin++) {
+            //     printf("DDR: %s\n",x_pin->first.c_str());
+            //     for (auto p_v=x_pin->second.begin(); p_v!=x_pin->second.end(); p_v++) {
+            //         for (auto p=p_v->begin(); p!=p_v->end(); p++)
+            //             printf("%d ", (*p)->net_ID);
+            //         printf("\n");
+            //     }
+            //     printf("\n");
+            // }
+            if ((*(ddr->second.begin()))->escape_dir == TOP) {
+                for (auto x_pin_group=ddr_sort_cpupin.begin(); x_pin_group!=ddr_sort_cpupin.end(); x_pin_group++) {
+                    for (auto y_pin_group=x_pin_group->second.begin(); y_pin_group!=x_pin_group->second.end(); y_pin_group++)
+                        sort(y_pin_group->begin(), y_pin_group->end(), pin_less_y);
+                }
+                
+                // printf("Then sort by y(TOP):\n");
+                // for (auto x_pin=ddr_sort_cpupin.begin(); x_pin!=ddr_sort_cpupin.end(); x_pin++) {
+                //     printf("DDR: %s\n",x_pin->first.c_str());
+                //     for (auto p_v=x_pin->second.begin(); p_v!=x_pin->second.end(); p_v++) {
+                //         for (auto p=p_v->begin(); p!=p_v->end(); p++)
+                //             printf("%d ", (*p)->net_ID);
+                //         printf("\n");
+                //     }
+                //     printf("\n");
+                // }
+            }
+            else {
+                for (auto x_pin_group=ddr_sort_cpupin.begin(); x_pin_group!=ddr_sort_cpupin.end(); x_pin_group++) {
+                    for (auto y_pin_group=x_pin_group->second.begin(); y_pin_group!=x_pin_group->second.end(); y_pin_group++) 
+                        sort(y_pin_group->begin(), y_pin_group->end(), pin_greater_y);
+                }
+                
+                // printf("Then sort by y(BOT):\n");
+                // for (auto x_pin=ddr_sort_cpupin.begin(); x_pin!=ddr_sort_cpupin.end(); x_pin++) {
+                //     printf("DDR: %s\n",x_pin->first.c_str());
+                //     for (auto p_v=x_pin->second.begin(); p_v!=x_pin->second.end(); p_v++) {
+                //         for (auto p=p_v->begin(); p!=p_v->end(); p++)
+                //             printf("%d ", (*p)->net_ID);
+                //         printf("\n");
+                //     }
+                //     printf("\n");
+                // }
+            }
+        }
+        else {
+            if (((*(ddr->second.begin()))->escape_dir == RIGHT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==BOT) ||
+                ((*(ddr->second.begin()))->escape_dir == LEFT && ddr_escape.at((*(ddr->second.begin()))->ddr_name)==TOP))
+                sort(ddr->second.begin(),ddr->second.end(), pin_less_y);
+            else
+                sort(ddr->second.begin(),ddr->second.end(), pin_greater_y);
+            if ((*(ddr->second.begin()))->escape_dir != RIGHT && (*(ddr->second.begin()))->escape_dir != LEFT) {
+                printf("pin escape not identical!\n");
+            }
+            int bot(-100);
+            for (auto double_it_p=ddr->second.begin(); double_it_p!=ddr->second.end(); double_it_p++) {
+                if (abs((*double_it_p)->real_pos.Y-bot) >= tolerance) {
+                    ddr_sort_cpupin[ddr->first].push_back(vector<Pin*>());
+                }
+                Pin P = *(*double_it_p);
+                bot=(*double_it_p)->real_pos.Y;
+                ddr_sort_cpupin[ddr->first].back().push_back(*double_it_p);
+            }
+            if ((*(ddr->second.begin()))->escape_dir == RIGHT) {
+                for (auto y_pin_group=ddr_sort_cpupin.begin(); y_pin_group!=ddr_sort_cpupin.end(); y_pin_group++) {
+                    for (auto x_pin_group=y_pin_group->second.begin(); x_pin_group!=y_pin_group->second.end(); x_pin_group++) 
+                        sort(x_pin_group->begin(), x_pin_group->end(), pin_less_x);
+                }
+                
+            }
+            else {
+                for (auto y_pin_group=ddr_sort_cpupin.begin(); y_pin_group!=ddr_sort_cpupin.end(); y_pin_group++) {
+                    for (auto x_pin_group=y_pin_group->second.begin(); x_pin_group!=y_pin_group->second.end(); x_pin_group++) 
+                        sort(x_pin_group->begin(), x_pin_group->end(), pin_greater_x);
+                }
+            }
+        }
+    }*/
+}
 void BLMR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
-    for (auto g=CPU_LCS_group.begin(); g!=CPU_LCS_group.end(); g++) {
-        for (auto sub_g=g->rbegin(); sub_g!=g->rend(); sub_g++){
-            
+    // vector<vector<vector<Line>>> LCS_group_net_line;
+    // vector<vector<vector<Line>>> LCS_group_net_line_align_bdy;
+    vector<Line> restnet_line; //CPU         DDR
+    vector<map<int,vector<pair<Detour_info,Detour_info>>>> coarse_detour_info(CPU_LCS_group.size());
+    vector<map<int,vector<pair<Detour_info,Detour_info>>>> fine_detour_info(CPU_LCS_group.size());
+    //merged_g nid layer  CPU              DDR
+    //escape line setting
+    set_line(CPU_LCS_group,DDR_LCS_group);
+
+    // for (auto idx_g=0; idx_g<CPU_LCS_group.size();idx_g++) {
+    for (auto idx_g=0; idx_g<1;idx_g++) {
+        map<int,vector<set<int>>> restnet_crossline;//rest net id : layer :cross net
+        map<int,set<int>> restnet_cross_each; //rest line cross each other
+        for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
+            auto n=net_list.at(*nid);
+            pair<int,int> ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
+            pair<int,int> ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
+            Line l(*nid,ep0,ep1);
+            restnet_line.push_back(l);
+        }
+
+        //test line of rest net crossing other 'unrouted' line in each layer
+        for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
+            auto n=net_list.at(*nid);
+            pair<int,int> ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
+            pair<int,int> ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
+            Line l(*nid,ep0,ep1);
+            restnet_cross_each[*nid] = test_crossing(restnet_line,l);
+            // printf("rest net %d corss: ",*nid);
+            // for (auto it=restnet_cross_each[*nid].begin();it!=restnet_cross_each[*nid].end();it++) {
+            //     printf("%d ",*it);
+            // }printf("\n");
+        }  
+        //line of unrouted net cross the net in each layer       
+        for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
+            vector<pair<int,int>> coarse_path, fine_path;
+            int best_idx_g;
+            int detour(1e8);
+            printf("rest net %d\n",*nid);
+            Net n=net_list.at(*nid);
+            pair<int,int> ep0,ep1;
+            auto p0 = &pin_list.at(n.net_pinID.at(0));
+            auto p1 = &pin_list.at(n.net_pinID.at(1));
+            ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
+            ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
+            Line n_line1(*nid,ep0,ep1);
+            Line n_line2;
+            {
+                if (p0->escape_dir == TOP) {
+                    ep0 = {p0->real_pos.X , comp_boundary.at(p0->comp_name).top};
+                }
+                else if (p0->escape_dir == BOT) {
+                    ep0 = {p0->real_pos.X , comp_boundary.at(p0->comp_name).bot};
+                }
+                else if (p0->escape_dir == RIGHT) {
+                    ep0 = {comp_boundary.at(p0->comp_name).right , p0->real_pos.Y};
+                }
+                else if (p0->escape_dir == LEFT) {
+                    ep0 = {comp_boundary.at(p0->comp_name).left , p0->real_pos.Y};
+                }
+                if (p1->escape_dir == TOP) {
+                    ep1 = {p1->real_pos.X , comp_boundary.at(p1->comp_name).top};
+                }
+                else if (p1->escape_dir == BOT) {
+                    ep1 = {p1->real_pos.X , comp_boundary.at(p1->comp_name).bot};
+                }
+                else if (p1->escape_dir == RIGHT) {
+                    ep1 = {comp_boundary.at(p1->comp_name).right , p1->real_pos.Y};
+                }
+                else if (p1->escape_dir == LEFT) {
+                    ep1 = {comp_boundary.at(p1->comp_name).left , p1->real_pos.Y};
+                }
+                n_line2.setup(*nid,ep0,ep1);
+            }
+            for (int sub_idx_g=0; sub_idx_g<CPU_LCS_group.at(idx_g).size(); sub_idx_g++){
+                // set<int> crossing_net1 = test_crossing(LCS_group_net_line.at(idx_g).at(sub_idx_g),n_line1);
+                set<int> crossing_net2 = test_crossing(LCS_group_net_line_align_bdy.at(idx_g).at(sub_idx_g),n_line2);
+                // printf("crossing_net1: ");
+                // for (auto cn=crossing_net1.begin(); cn!=crossing_net1.end(); cn++) {
+                //     printf("%d ",*cn);
+                // }
+                // printf("\n");
+                // restnet_crossline[*nid].insert(restnet_crossline[*nid].begin(),crossing_net1);
+                printf("crossing_net2: ");
+                for (auto cn=crossing_net2.begin(); cn!=crossing_net2.end(); cn++) {
+                    printf("%d ",*cn);
+                }
+                printf("\n");
+                restnet_crossline[*nid].push_back(crossing_net2);
+            }
+            printf("\n");
+        }
+        for (auto rest_net=restnet_crossline.begin(); rest_net!=restnet_crossline.end(); rest_net++) {
+            // fine_detour_info.at(idx_g)[rest_net->first].resize(rest_net->second.size());
+            // coarse_detour_info.at(idx_g)[rest_net->first].resize(rest_net->second.size());
+            Pin* cpu_p,*ddr_p;
+            if (pin_list.at(net_list.at(rest_net->first).net_pinID.at(0)).CPU_side) {
+                cpu_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
+                ddr_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
+            }
+            else {
+                cpu_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
+                ddr_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
+            }
+            int detour_dist(1e8);
+            int layer(0);
+            for (auto sub_g=rest_net->second.begin(); sub_g!=rest_net->second.end(); sub_g++) {//layer
+                printf ("layer %d\n",layer);
+                Boundary cpu_detour_region(cpu_p->real_pos.X,cpu_p->real_pos.Y,cpu_p->real_pos.X,cpu_p->real_pos.Y),ddr_detour_region(ddr_p->real_pos.X,ddr_p->real_pos.Y,ddr_p->real_pos.X,ddr_p->real_pos.Y);
+                for (auto cn=sub_g->begin(); cn!=sub_g->end(); cn++) {
+                    Pin* cn_cpu_p,*cn_ddr_p;
+                    if (pin_list.at(net_list.at(*cn).net_pinID.at(0)).CPU_side) {
+                        cn_cpu_p=&pin_list.at(net_list.at(*cn).net_pinID.at(0));
+                        cn_ddr_p=&pin_list.at(net_list.at(*cn).net_pinID.at(1));
+                    }
+                    else {
+                        cn_cpu_p=&pin_list.at(net_list.at(*cn).net_pinID.at(1));
+                        cn_ddr_p=&pin_list.at(net_list.at(*cn).net_pinID.at(0));
+                    }
+                    //CPU detour
+                    if (cn_cpu_p->real_pos.X > cpu_detour_region.right) {
+                        cpu_detour_region.right = cn_cpu_p->real_pos.X;
+                    }
+                    if (cn_cpu_p->real_pos.X < cpu_detour_region.left) {
+                        cpu_detour_region.left = cn_cpu_p->real_pos.X;
+                    }
+                    if (cn_cpu_p->real_pos.Y > cpu_detour_region.top) {
+                        cpu_detour_region.top = cn_cpu_p->real_pos.Y;
+                    }
+                    if (cn_cpu_p->real_pos.Y < cpu_detour_region.bot) {
+                        cpu_detour_region.bot = cn_cpu_p->real_pos.Y;
+                    }
+                    //DDR detour
+                    if (cn_ddr_p->real_pos.X > ddr_detour_region.right) {
+                        ddr_detour_region.right = cn_ddr_p->real_pos.X;
+                    }
+                    if (cn_ddr_p->real_pos.X < ddr_detour_region.left) {
+                        ddr_detour_region.left = cn_ddr_p->real_pos.X;
+                    }
+                    if (cn_ddr_p->real_pos.Y > ddr_detour_region.top) {
+                        ddr_detour_region.top = cn_ddr_p->real_pos.Y;
+                    }
+                    if (cn_ddr_p->real_pos.Y < ddr_detour_region.bot) {
+                        ddr_detour_region.bot = cn_ddr_p->real_pos.Y;
+                    }   
+
+                }    
+                Boundary cpu_coarse_bdy_coor, ddr_coarse_bdy_coor;
+                Boundary cpu_fine_bdy_coor, ddr_fine_bdy_coor;
+                {//assign detour boundary coor
+                // printf("coarse_x_length:%d  coarse_y_length:%d\n",coarse_x_length,coarse_y_length);
+                    int left_coor = (cpu_detour_region.left-total_boundary.left)/coarse_x_length;
+                    int right_coor =(cpu_detour_region.right-total_boundary.left)/coarse_x_length;
+                    int top_coor = (cpu_detour_region.top-total_boundary.bot)/coarse_y_length;
+                    int bot_coor =(cpu_detour_region.bot-total_boundary.bot)/coarse_y_length;
+                    cpu_coarse_bdy_coor.setup(left_coor,bot_coor,right_coor,top_coor);
+
+                    left_coor = (cpu_detour_region.left-total_boundary.left)/fine_x_length;
+                    right_coor =(cpu_detour_region.right-total_boundary.left)/fine_x_length;
+                    top_coor = (cpu_detour_region.top-total_boundary.bot)/fine_y_length;
+                    bot_coor =(cpu_detour_region.bot-total_boundary.bot)/fine_y_length;
+                    cpu_fine_bdy_coor.setup(left_coor,bot_coor,right_coor,top_coor);
+
+                    left_coor = (ddr_detour_region.left-total_boundary.left)/coarse_x_length;
+                    right_coor =(ddr_detour_region.right-total_boundary.left)/coarse_x_length;
+                    top_coor = (ddr_detour_region.top-total_boundary.bot)/coarse_y_length;
+                    bot_coor =(ddr_detour_region.bot-total_boundary.bot)/coarse_y_length;
+                    ddr_coarse_bdy_coor.setup(left_coor,bot_coor,right_coor,top_coor);
+
+                    left_coor = (ddr_detour_region.left-total_boundary.left)/fine_x_length;
+                    right_coor =(ddr_detour_region.right-total_boundary.left)/fine_x_length;
+                    top_coor = (ddr_detour_region.top-total_boundary.bot)/fine_y_length;
+                    bot_coor =(ddr_detour_region.bot-total_boundary.bot)/fine_y_length;
+                    ddr_fine_bdy_coor.setup(left_coor,bot_coor,right_coor,top_coor);
+                }
+                coarse_detour_info.at(idx_g)[rest_net->first].push_back(pair<Detour_info,Detour_info>({Detour_info(rest_net->first,layer),Detour_info(rest_net->first,layer)}));
+                rest_net_detour(coarse_detour_info.at(idx_g)[rest_net->first].back().first ,1,1,cpu_coarse_bdy_coor,cpu_p,layer);
+                rest_net_detour(coarse_detour_info.at(idx_g)[rest_net->first].back().second,0,1,ddr_coarse_bdy_coor,ddr_p,layer);
+                // coarse_detour_info.at(idx_g)[rest_net->first].back().first.print();
+                // coarse_detour_info.at(idx_g)[rest_net->first].back().second.print();
+                // fine_detour_info.at(idx_g)[rest_net->first].push_back(pair<Detour_info,Detour_info>({Detour_info(rest_net->first,layer),Detour_info(rest_net->first,layer)}));
+                // rest_net_detour(fine_detour_info.at(idx_g)[rest_net->first].back().first ,1,0,cpu_fine_bdy_coor,cpu_p);
+                // rest_net_detour(fine_detour_info.at(idx_g)[rest_net->first].back().second,0,0,ddr_fine_bdy_coor,ddr_p);
+                layer++;
+            }printf ("\n");
+
+        }
+        for (auto rest_net=coarse_detour_info.at(idx_g).begin();rest_net!=coarse_detour_info.at(idx_g).end(); rest_net++) {
+            Detour_info best_detour;
+            Pin* cpu_p, *ddr_p;
+            int temp1=rest_net->first;
+            if (pin_list.at(net_list.at(rest_net->first).net_pinID.at(0)).CPU_side) {
+                cpu_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
+                ddr_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
+            }
+            else {
+                cpu_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
+                ddr_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
+            }
+            for (auto layer_detour=rest_net->second.begin(); layer_detour!=rest_net->second.end(); layer_detour++) {
+                if (layer_detour->first.layer==0)
+                    continue;
+                // layer_detour->first.print();
+                // layer_detour->second.print();
+                if (layer_detour->first.detour_dist < layer_detour->second.detour_dist) {
+                    if (layer_detour->first.detour_dist <= best_detour.detour_dist)
+                        best_detour = layer_detour->first;
+                }
+                else {
+                    if (layer_detour->second.detour_dist <= best_detour.detour_dist)
+                        best_detour = layer_detour->second;
+                }
+            }
+            best_detour.print();
+            CPU_LCS_group.at(idx_g).at(best_detour.layer).push_back({best_detour.rest_net,1000});
+            DDR_LCS_group.at(idx_g).at(best_detour.layer).push_back({best_detour.rest_net,1000});
+            if (best_detour.CPU_side) {
+                cpu_p->ER_coarse_cell = best_detour.path_coor;
+                cpu_p->esti_escape_routing_length = best_detour.detour_dist;
+                if (ddr_p->escape_dir == TOP || ddr_p->escape_dir == BOT) {
+                    if (ddr_p->escape_dir == TOP) {
+                        int top_coor = (comp_boundary.at(ddr_p->comp_name).top-total_boundary.bot)/coarse_y_length;
+                        for (int y=ddr_p->coarse_coor.Y; y<=top_coor; y++) {
+                            ddr_p->ER_coarse_cell.push_back(Coor(best_detour.layer,ddr_p->coarse_coor.X,y));
+                        }
+                    }
+                    else if (ddr_p->escape_dir == BOT){
+                        int bot_coor = (comp_boundary.at(ddr_p->comp_name).bot-total_boundary.bot)/coarse_y_length;
+                        for (int y=ddr_p->coarse_coor.Y; y>=bot_coor; y--) {
+                            ddr_p->ER_coarse_cell.push_back(Coor(best_detour.layer,ddr_p->coarse_coor.X,y));
+                        }
+                    }
+                }
+                else {
+                    if (ddr_p->escape_dir == RIGHT) {
+                        int right_coor = (comp_boundary.at(ddr_p->comp_name).right-total_boundary.left)/coarse_x_length;
+                        for (int x=ddr_p->coarse_coor.Y; x<=right_coor; x++) {
+                            ddr_p->ER_coarse_cell.push_back(Coor(best_detour.layer,x,ddr_p->coarse_coor.Y));
+                        }
+                    }
+                    else if (ddr_p->escape_dir == LEFT){
+                        int left_coor = (comp_boundary.at(ddr_p->comp_name).left-total_boundary.left)/coarse_x_length;
+                        for (int x=ddr_p->coarse_coor.Y; x>=left_coor; x--) {
+                            ddr_p->ER_coarse_cell.push_back(Coor(best_detour.layer,x,ddr_p->coarse_coor.Y));
+                        }
+                    }
+                }
+            }
+            else {                
+                ddr_p->ER_coarse_cell = best_detour.path_coor;
+                ddr_p->esti_escape_routing_length = best_detour.detour_dist;
+                if (cpu_p->escape_dir == TOP || cpu_p->escape_dir == BOT) {
+                    if (cpu_p->escape_dir == TOP) {
+                        int top_coor = (comp_boundary.at(cpu_p->comp_name).top-total_boundary.bot)/coarse_y_length;
+                        for (int y=cpu_p->coarse_coor.Y; y<=top_coor; y++) {
+                            cpu_p->ER_coarse_cell.push_back(Coor(best_detour.layer,cpu_p->coarse_coor.X,y));
+                        }
+                    }
+                    else if (cpu_p->escape_dir == BOT){
+                        int bot_coor = (comp_boundary.at(cpu_p->comp_name).bot-total_boundary.bot)/coarse_y_length;
+                        for (int y=cpu_p->coarse_coor.Y; y>=bot_coor; y--) {
+                            cpu_p->ER_coarse_cell.push_back(Coor(best_detour.layer,cpu_p->coarse_coor.X,y));
+                        }
+                    }
+                }
+                else {
+                    if (cpu_p->escape_dir == RIGHT) {
+                        int right_coor = (comp_boundary.at(cpu_p->comp_name).right-total_boundary.left)/coarse_x_length;
+                        for (int x=cpu_p->coarse_coor.Y; x<=right_coor; x++) {
+                            cpu_p->ER_coarse_cell.push_back(Coor(best_detour.layer,x,cpu_p->coarse_coor.Y));
+                        }
+                    }
+                    else if (cpu_p->escape_dir == LEFT){
+                        int left_coor = (comp_boundary.at(cpu_p->comp_name).left-total_boundary.left)/coarse_x_length;
+                        for (int x=cpu_p->coarse_coor.Y; x>=left_coor; x--) {
+                            cpu_p->ER_coarse_cell.push_back(Coor(best_detour.layer,x,cpu_p->coarse_coor.Y));
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+void BLMR::rest_net_detour(Detour_info& di, bool is_CPU, bool is_coarse, const Boundary& bdy_coor, Pin* p, int layer) {
+    di.layer = layer;
+    Boundary comp_bdy_coor;
+    di.CPU_side = is_CPU;
+    pair<int,int> p_coor;
+    int cell_x_length,cell_y_length;
+    if (is_coarse) {
+        cell_x_length = coarse_x_length;
+        cell_y_length = coarse_y_length;
+        p_coor=p->coarse_coor;
+    }
+    else {
+        cell_x_length = fine_x_length;
+        cell_y_length = fine_y_length;
+        p_coor=p->fine_coor;
+    }
+    if (is_CPU) {
+        comp_bdy_coor.setup((comp_boundary.at(CPU_name).left-total_boundary.left)/cell_x_length,
+                            (comp_boundary.at(CPU_name).bot-total_boundary.bot)/cell_y_length,
+                            (comp_boundary.at(CPU_name).right-total_boundary.left)/cell_x_length,
+                            (comp_boundary.at(CPU_name).top-total_boundary.bot)/cell_y_length);
+    }
+    else {
+        comp_bdy_coor.setup((comp_boundary.at(p->comp_name).left-total_boundary.left)/cell_x_length,
+                            (comp_boundary.at(p->comp_name).bot-total_boundary.bot)/cell_y_length,
+                            (comp_boundary.at(p->comp_name).right-total_boundary.left)/cell_x_length,
+                            (comp_boundary.at(p->comp_name).top-total_boundary.bot)/cell_y_length);
+    }
+
+    if (p->escape_dir == TOP) {
+        for (int y=p_coor.Y; y>=bdy_coor.bot; y--) {
+            di.path_coor.push_back(Coor(di.layer,p_coor.X, y));
+        }
+        if (p_coor.X == bdy_coor.left ) {//right
+            for (int x=bdy_coor.left+1; x<=bdy_coor.right; x++) {
+                di.path_coor.push_back(Coor(di.layer,x,bdy_coor.bot));
+            }
+            for (int y=bdy_coor.bot+1; y<=comp_bdy_coor.top; y++) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.right,y));
+            }
+        }
+        else if (p_coor.X == bdy_coor.right) {
+            for (int x=bdy_coor.right-1; x>=bdy_coor.left; x--) {
+                di.path_coor.push_back(Coor(di.layer,x,bdy_coor.bot));
+            }
+            for (int y=bdy_coor.bot+1; y<=comp_bdy_coor.top; y++) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.left,y));
+            }
+        }
+        di.detour_dist = ((p_coor.Y-bdy_coor.bot)+(comp_bdy_coor.top-bdy_coor.bot))*cell_y_length+
+                          (bdy_coor.right-bdy_coor.left)*cell_x_length;
+        
+    }
+    else if (p->escape_dir == BOT) {
+        for (int y=p_coor.Y; y<=bdy_coor.top; y++) {
+            di.path_coor.push_back(Coor(di.layer,p_coor.X, y));
+        }
+        if (p_coor.X == bdy_coor.left ) {//right
+            for (int x=bdy_coor.left+1; x<=bdy_coor.right; x++) {
+                di.path_coor.push_back(Coor(di.layer,x,bdy_coor.top));
+            }
+            for (int y=bdy_coor.top-1; y>=comp_bdy_coor.bot; y--) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.right,y));
+            }
+        }
+        else if (p_coor.X == bdy_coor.right) {
+            for (int x=bdy_coor.right-1; x>=bdy_coor.left; x--) {
+                di.path_coor.push_back(Coor(di.layer,x,bdy_coor.top));
+            }
+            for (int y=bdy_coor.top-1; y>=comp_bdy_coor.bot; y--) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.left,y));
+            }
+        }
+        di.detour_dist = ((bdy_coor.top-p_coor.Y)+(bdy_coor.top-comp_bdy_coor.bot))*cell_y_length+
+                          (bdy_coor.right-bdy_coor.left)*cell_x_length;
+    }
+    else if (p->escape_dir == RIGHT){        
+        for (int i=p_coor.X; i>=bdy_coor.left; i--) {
+            di.path_coor.push_back(Coor(di.layer, i, p_coor.Y));
+        }
+        if (p_coor.Y == bdy_coor.bot ) {//top
+            for (int j=bdy_coor.bot+1; j<=bdy_coor.top; j++) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.left,j));
+            }
+            for (int i=bdy_coor.left+1; i<=comp_bdy_coor.right; i++) {
+                di.path_coor.push_back(Coor(di.layer,i,bdy_coor.top));
+            }
+        }
+        else if (p_coor.Y == bdy_coor.top) {//bot
+            for (int j=bdy_coor.top-1; j>=bdy_coor.bot; j--) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.left,j));
+            }
+            for (int i=bdy_coor.left+1; i<=comp_bdy_coor.right; i++) {
+                di.path_coor.push_back(Coor(di.layer,i,bdy_coor.bot));
+            }
+        }
+        di.detour_dist = ((p_coor.X-bdy_coor.left)+(comp_bdy_coor.right-bdy_coor.left))*cell_x_length+
+                          (bdy_coor.top-bdy_coor.bot)*cell_y_length;
+    }    
+    else if (p->escape_dir == LEFT){        
+        for (int i=p_coor.X; i<=bdy_coor.right; i++) {
+            di.path_coor.push_back(Coor(di.layer,i, p_coor.Y));
+        }
+        if (p_coor.Y == bdy_coor.bot ) {//top
+            for (int j=bdy_coor.bot+1; j<=bdy_coor.top; j++) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.right,j));
+            }
+            for (int i=bdy_coor.right-1; i>=comp_bdy_coor.left; i--) {
+                di.path_coor.push_back(Coor(di.layer,i,bdy_coor.top));
+            }
+        }
+        else if (p_coor.Y == bdy_coor.top) {//bot
+            for (int j=bdy_coor.top-1; j>=bdy_coor.bot; j--) {
+                di.path_coor.push_back(Coor(di.layer,bdy_coor.right,j));
+            }
+            for (int i=bdy_coor.right-1; i>=comp_bdy_coor.left; i--) {
+                di.path_coor.push_back(Coor(di.layer,i,bdy_coor.bot));
+            }
+        }
+        di.detour_dist = ((bdy_coor.right-p_coor.X)+(bdy_coor.right-comp_bdy_coor.left))*cell_x_length+
+                          (bdy_coor.top-bdy_coor.bot)*cell_y_length;
+    }
+    
+    di.print();
+}
 
 /*void BLMR::partition_by_position(std::vector<std::vector<int>>& group) {
     parted_group.resize(static_cast<int>(group.size()));
@@ -1012,3 +2237,104 @@ void BLMR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
         }
 
 }*/
+void BLMR::set_line(vector<vector<vector<pair<int,int>>>>& CPU_LCS_group, const vector<vector<vector<pair<int,int>>>>& DDR_LCS_group) {
+    
+    int pitch = MIN_SPACING+WIRE_WIDTH;
+    for (auto g=CPU_LCS_group.begin(); g!=CPU_LCS_group.end(); g++) {
+        for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+            for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                Pin* cpu_p, *ddr_p;
+                if (pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0)).CPU_side) {
+                    cpu_p = &pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0));
+                    ddr_p = &pin_list.at(net_list.at(nid_shift->first).net_pinID.at(1));
+                }
+                else {
+                    cpu_p = &pin_list.at(net_list.at(nid_shift->first).net_pinID.at(1));
+                    ddr_p = &pin_list.at(net_list.at(nid_shift->first).net_pinID.at(0));
+                }
+                // if (cpu_p->escape_dir == TOP && ddr_p->escape_dir==LEFT)
+                //     nid_shift->second*=-1;
+                // else if (cpu_p->escape_dir == BOT && ddr_p->escape_dir==RIGHT)
+                //     nid_shift->second*=-1;
+                // else if (cpu_p->escape_dir == RIGHT && ddr_p->escape_dir==BOT)
+                //     nid_shift->second*=-1;
+                // else if (cpu_p->escape_dir == LEFT && ddr_p->escape_dir==TOP)
+                //     nid_shift->second*=-1;
+            }
+        }
+    }
+    for (auto g=CPU_LCS_group.begin(); g!=CPU_LCS_group.end(); g++) {
+        LCS_group_net_line_align_bdy.push_back(vector<map<int,Line>>());
+        for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+            LCS_group_net_line_align_bdy.back().push_back(map<int,Line>());
+            for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                Net n=net_list.at(nid_shift->first);
+                if (!n.is2pin_net)
+                    continue;
+                Pin p0;
+                if (pin_list.at(n.net_pinID.at(0)).CPU_side) {
+                    p0=pin_list.at(n.net_pinID.at(0));
+                }
+                else 
+                    p0=pin_list.at(n.net_pinID.at(1));
+                // ep0 = {p0.real_pos.X , p0.real_pos.Y};
+                // ep1 = {p1.real_pos.X , p1.real_pos.Y};
+                // Line line(n.net_ID,ep0,ep1);
+                // LCS_group_net_line.back().back().push_back(line);
+                {
+                    if (p0.escape_dir==TOP) {
+                        LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).top+1000};
+                    }
+                    else if (p0.escape_dir==BOT){
+                        LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {p0.real_pos.X+nid_shift->second*pitch*(-1) , comp_boundary.at(p0.comp_name).bot-1000};
+                    }
+                    else if (p0.escape_dir==RIGHT){
+                        LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {comp_boundary.at(p0.comp_name).right+1000 , p0.real_pos.Y+nid_shift->second*pitch*(-1)};
+                    }
+                    else {
+                        LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {comp_boundary.at(p0.comp_name).left-1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                    }
+                }
+                LCS_group_net_line_align_bdy.back().back()[n.net_ID].net = n.net_ID;
+            }
+        }
+    }
+    {int idx_g(0);
+    for (auto g=DDR_LCS_group.begin(); g!=DDR_LCS_group.end(); g++) {
+        int idx_sub_g(0);
+        for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+            for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                Net n=net_list.at(nid_shift->first);
+                if (!n.is2pin_net)
+                    continue;
+                Pin p0;
+                if (!pin_list.at(n.net_pinID.at(0)).CPU_side) {
+                    p0=pin_list.at(n.net_pinID.at(0));
+                }
+                else 
+                    p0=pin_list.at(n.net_pinID.at(1));
+                // ep0 = {p0.real_pos.X , p0.real_pos.Y};
+                // ep1 = {p1.real_pos.X , p1.real_pos.Y};
+                // Line line(n.net_ID,ep0,ep1);
+                // LCS_group_net_line.back().back().push_back(line);
+                {
+                    if (p0.escape_dir==TOP) {
+                        LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {p0.real_pos.X+nid_shift->second*pitch*(-1) , comp_boundary.at(p0.comp_name).top+1000};
+                    }
+                    else if (p0.escape_dir==BOT){
+                        LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).bot-1000};
+                    }
+                    else if (p0.escape_dir==RIGHT){
+                        LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {comp_boundary.at(p0.comp_name).right+1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                    }
+                    else {
+                        LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {comp_boundary.at(p0.comp_name).left-1000 , p0.real_pos.Y+nid_shift->second*pitch*(-1)};
+                    }
+                }
+
+            }
+        idx_sub_g++;
+        }
+        idx_g++;
+    }}
+}
