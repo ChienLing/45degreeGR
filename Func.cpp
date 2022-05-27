@@ -4,7 +4,14 @@ using namespace std;
 #define R second
 #define X first
 #define Y second
-
+#define VERBOSITY false
+bool out_of_bdy(const Coor& coor,const Coor& diagonal_coor) {
+    if (coor.x <0 || coor.y<0 || coor.z<0)
+        return true;
+    else if (coor.x>diagonal_coor.x || coor.y>diagonal_coor.y || coor.z>diagonal_coor.z)
+        return true;
+    return false;
+}
 
 int find_root(vector<int>& root_table, int idx) {
     vector<int> record;
@@ -96,6 +103,14 @@ int overlap_w(Boundary b1, Boundary b2) {
     return width;
 }
 
+bool coor_less_x_less_y(const Coor _c1, const Coor _c2) {
+    if (_c1.x < _c2.x)
+        return true;
+    else if (_c1.x==_c2.x && _c1.y<_c2.y)
+        return true;
+    return false;
+}
+
 bool pin_less_x (const Pin* _p1, const Pin* _p2) {
     return _p1->real_pos.first > _p2->real_pos.first;
 }
@@ -125,13 +140,13 @@ bool Bdy_greater_y (const Boundary _b1, const Boundary _b2) {
 std::vector<int> LCS(const vector<vector<int>>& v1, const vector<vector<int>>& v2) {
     vector<int> list1, list2;
     map<int,double> weight;
-    printf("v1: \n");
-    for (auto it1=v1.begin(); it1!=v1.end(); it1++) {
-        for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
-            printf("%d ",*it2);
-        }
-        printf("\n");
-    }
+    // printf("v1: \n");
+    // for (auto it1=v1.begin(); it1!=v1.end(); it1++) {
+    //     for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
+    //         printf("%d ",*it2);
+    //     }
+    //     printf("\n");
+    // }
     for (int i=0; i<v1.size(); i++) {
         int size = v1.at(i).size();
         int end = (1-v1.at(i).size());
@@ -142,27 +157,27 @@ std::vector<int> LCS(const vector<vector<int>>& v1, const vector<vector<int>>& v
             }
         }
     }
-    for (auto it=list1.begin(); it!=list1.end(); it++) {
-            printf("%d ",*it);
-    }
-    printf("\n");
-    printf("v2: \n");
-    for (auto it1=v2.begin(); it1!=v2.end(); it1++) {
-        for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
-            printf("%d ",*it2);
-        }
-        printf("\n");
-    }
+    // for (auto it=list1.begin(); it!=list1.end(); it++) {
+    //         printf("%d ",*it);
+    // }
+    // printf("\n");
+    // printf("v2: \n");
+    // for (auto it1=v2.begin(); it1!=v2.end(); it1++) {
+    //     for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
+    //         printf("%d ",*it2);
+    //     }
+    //     printf("\n");
+    // }
     for (int i=0; i<v2.size(); i++) {
         int end = (1-v2.at(i).size());
         for (int j=v2.at(i).size()-1; j>=end; j--) {
             list2.push_back(v2.at(i).at(abs(j)));
         }
     }
-    for (auto it=list2.begin(); it!=list2.end(); it++) {
-            printf("%d ",*it);
-    }
-    printf("\n");
+    // for (auto it=list2.begin(); it!=list2.end(); it++) {
+    //         printf("%d ",*it);
+    // }
+    // printf("\n");
     if (list1.size()==0 || list2.size()==0)
         return vector<int>();
     return LCS(list1,list2);
@@ -267,31 +282,32 @@ vector<int> LCS(const vector<int>& v1, const vector<int>& v2) {
         else
             cout<<"DP wrong\n";
     }
-        printf ("ans1/ans2 LCS ans\n");
-    for (auto it=ans.rbegin(); it!=ans.rend(); it++) {
-        printf ("%d ", *it);
-    }
-        printf ("\n");
+    //     printf ("ans1/ans2 LCS ans\n");
+    // for (auto it=ans.rbegin(); it!=ans.rend(); it++) {
+    //     printf ("%d ", *it);
+    // }
+    //     printf ("\n");
     return ans;
 }
 
 //deal with pin close to cpi boundary
 //The closer the pin is to the CPU boundary, the higher the weight
 
-
-
 pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<vector<int>>& v1, const vector<vector<int>>& v2, 
                      const vector<pair<int,int>>& dp_list, vector<int>& ED_table1, vector<int>& ED_table2, 
                      vector<int>& location1, vector<int>& location2) {
     vector<decode_node> list1, list2;
     map<int,double> weight;
-    printf("v1: \n");
-    for (auto it1=v1.begin(); it1!=v1.end(); it1++) {
-        for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
-            printf("%d ",*it2);
-        }
-        printf("\n");
+    if (VERBOSITY) {
+        printf("v1: \n");
+        for (auto it1=v1.begin(); it1!=v1.end(); it1++) {
+            for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
+                printf("%d ",*it2);
+            }
+            printf("\n");
+        }      
     }
+
     for (int i=0; i<v1.size(); i++) {
         int size = v1.at(i).size();
         int end = (1-v1.at(i).size());
@@ -312,17 +328,20 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<vector<int>>&
             list1.push_back(node);
         }
     }
-    for (auto it=list1.begin(); it!=list1.end(); it++) {
-            printf("%d ",it->ID);
-    }
-    printf("\n");
-    printf("v2: \n");
-    for (auto it1=v2.begin(); it1!=v2.end(); it1++) {
-        for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
-            printf("%d ",*it2);
+    if (VERBOSITY) {
+        for (auto it=list1.begin(); it!=list1.end(); it++) {
+                printf("%d ",it->ID);
         }
         printf("\n");
+        printf("v2: \n");
+        for (auto it1=v2.begin(); it1!=v2.end(); it1++) {
+            for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
+                printf("%d ",*it2);
+            }
+            printf("\n");
+        }        
     }
+
     for (int i=0; i<v2.size(); i++) {
         int end = (1-v2.at(i).size());
         for (int j=v2.at(i).size()-1; j>=end; j--) {
@@ -343,10 +362,12 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS(const vector<vector<int>>&
             list2.push_back(node);
         }
     }
-    for (auto it=list2.begin(); it!=list2.end(); it++) {
-            printf("%d ",it->ID);
+    if (VERBOSITY) {
+        for (auto it=list2.begin(); it!=list2.end(); it++) {
+                printf("%d ",it->ID);
+        }
+        printf("\n");
     }
-    printf("\n");
     if (list1.size()==0 || list2.size()==0)
         return pair<vector<pair<int,int>>,vector<pair<int,int>>>();
     return LCS(list1,list2,weight,dp_list,location1,location2); 
@@ -447,19 +468,22 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 }
             }
         }
-        // /**/printf("   ");
-        // for (int i=0; i<v1.size(); i++) {
-        //     printf("%9d",v1.at(i).ID);
-        // }
-        // printf("\n");
-        // for (int j=0; j<v2.size(); j++) {
-        //     printf("%d  ",v2.at(j).ID);
-        //     for (int i=0; i<v1.size(); i++) {
-        //         printf("%5.1f/%d/%d",DP.at(i).at(j).num, DP.at(i).at(j).backward,DP.at(i).at(j).upward);
-        //     }
-        //     printf("\n");
-        // }
-        // printf("\n");
+        if (VERBOSITY) {
+            // printf("   ");
+            // for (int i=0; i<v1.size(); i++) {
+            //     printf("%9d",v1.at(i).ID);
+            // }
+            // printf("\n");
+            // for (int j=0; j<v2.size(); j++) {
+            //     printf("%d  ",v2.at(j).ID);
+            //     for (int i=0; i<v1.size(); i++) {
+            //         printf("%5.1f/%d/%d",DP.at(i).at(j).num, DP.at(i).at(j).backward,DP.at(i).at(j).upward);
+            //     }
+            //     printf("\n");
+            // }
+            // printf("\n");
+        }
+
         map<int,pair<vector<decode_node>,vector<decode_node>>> record_L_R1,record_L_R2;
         map<int,vector<decode_node>> record_M1,record_M2;
         vector<int> temp_ans;
@@ -491,41 +515,47 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             else
                 cout<<"DP wrong\n";
         }
-        printf("temp ans(no remove anyting)\n");
-        for (auto it=temp_ans.rbegin(); it!=temp_ans.rend(); it++) {
-            printf("%d ",*it);
-        }printf("\n");
-        printf("record_L_R1 ans(no remove anyting)\n");
-        for (auto it1=record_L_R1.begin(); it1!=record_L_R1.end(); it1++) {
-            printf("%d: ",it1->first);
-            for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
-                printf("%d ",it2->ID);
-            }
-            printf("\\");
-            for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
-                printf("%d ",it2->ID);
-            }
-            printf("\n");
-        }printf("\n");
+        if (VERBOSITY) {
+            printf("temp ans(no remove anyting)\n");
+            for (auto it=temp_ans.rbegin(); it!=temp_ans.rend(); it++) {
+                printf("%d ",*it);
+            }printf("\n");
+            printf("record_L_R1 ans(no remove anyting)\n");
+            for (auto it1=record_L_R1.begin(); it1!=record_L_R1.end(); it1++) {
+                printf("%d: ",it1->first);
+                for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
+                    printf("%d ",it2->ID);
+                }
+                printf("\\");
+                for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
+                    printf("%d ",it2->ID);
+                }
+                printf("\n");
+            }printf("\n");            
+        }
+
+ 
 
         for (auto it=record_L_R1.begin(); it!=record_L_R1.end(); it++) {
             auto next_it=it;    next_it++;
             if (next_it==record_L_R1.end())
                 continue;
-            int pitch=MIN_SPACING+WIRE_WIDTH;   pitch*=1.6;
+            int pitch=MIN_SPACING+WIRE_WIDTH;   pitch*=pitch_extend_coe;
             int it_f=it->first;
             int nextit_f=next_it->first;
             int l=location1.at(it->first), r=location1.at(next_it->first);
             int cap = abs((location1.at(it->first)-location1.at(next_it->first))/pitch);
             if (record_M1[it->first].empty()||record_M1[next_it->first].size()==0)
                 cap++;
-            printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
+            if (VERBOSITY) 
+                printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
             int rr=it->second.R.size(), ll=next_it->second.L.size();
             while (it->second.R.size()+next_it->second.L.size() > cap) {
                 bool del(false);
                 for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
-                        printf("del repeat %d\n",erase_it->ID);
+                        if (VERBOSITY) 
+                            printf("del repeat %d\n",erase_it->ID);
                         for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                             if (*it_v1 == *erase_it) {
                                 it_v1->ID==-1;
@@ -541,7 +571,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                     continue;
                 for (auto erase_it=next_it->second.L.begin(); erase_it!=next_it->second.L.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
-                        printf("del repeat %d\n",erase_it->ID);
+                        if (VERBOSITY) 
+                            printf("del repeat %d\n",erase_it->ID);
                         for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                             if (*it_v1 == *erase_it) {
                                 it_v1->ID = -1;
@@ -556,7 +587,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 if (del)
                     continue;
                 if (it->second.R.size() > next_it->second.L.size()) {
-                    printf("pop %d\n",it->second.R.back().ID);
+                    if (VERBOSITY) 
+                        printf("pop %d\n",it->second.R.back().ID);
                     for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                         if (*it_v1 == it->second.R.back()) {
                             it_v1->ID = -1;
@@ -565,7 +597,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                     it->second.R.pop_back();
                 }
                 else {
-                    printf("pop %d\n",next_it->second.L.back().ID);
+                    if (VERBOSITY) 
+                        printf("pop %d\n",next_it->second.L.back().ID);
                     for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                         if (*it_v1 == next_it->second.L.back()) {
                             it_v1->ID = -1;
@@ -575,32 +608,37 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 }
             }
         }printf("\n");
-        printf("record_L_R2 ans(no remove anyting)\n");
-        for (auto it1=record_L_R2.begin(); it1!=record_L_R2.end(); it1++) {
-            printf("%d: ",it1->first);
-            for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
-                printf("%d ",it2->ID);
-            }
-            printf("\\");
-            for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
-                printf("%d ",it2->ID);
-            }
-            printf("\n");
-        }printf("\n");
+        if (VERBOSITY) {
+            printf("record_L_R2 ans(no remove anyting)\n");
+            for (auto it1=record_L_R2.begin(); it1!=record_L_R2.end(); it1++) {
+                printf("%d: ",it1->first);
+                for (auto it2=it1->second.first.rbegin(); it2!=it1->second.first.rend(); it2++) {
+                    printf("%d ",it2->ID);
+                }
+                printf("\\");
+                for (auto it2=it1->second.second.begin(); it2!=it1->second.second.end(); it2++) {
+                    printf("%d ",it2->ID);
+                }
+                printf("\n");
+            }printf("\n");            
+        }
+
         for (auto it=record_L_R2.begin(); it!=record_L_R2.end(); it++) {
             auto next_it=it;    next_it++;
             if (next_it==record_L_R2.end())
                 continue;
             int pitch=MIN_SPACING+WIRE_WIDTH;   pitch*=1.4;
-            int cap = abs((location2.at(it->first)-location2.at(next_it->first))/pitch);
+            int cap = abs((location2.at(it->first)-location2.at(next_it->first))/pitch)-1;
             if (record_M2[it->first].size()==0||record_M2[next_it->first].size()==0)
                 cap++;
-            printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
+            if (VERBOSITY) 
+                printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
             while (it->second.R.size()+next_it->second.L.size() > cap) {
                 bool del(false);
                 for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
-                        printf("del repeat %d\n",erase_it->ID);
+                        if (VERBOSITY) 
+                            printf("del repeat %d\n",erase_it->ID);
                         for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                             if (*it_v1 == *erase_it) {
                                 it_v1->ID==-1;
@@ -616,7 +654,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                     continue;
                 for (auto erase_it=next_it->second.L.begin(); erase_it!=next_it->second.L.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
-                        printf("del repeat %d\n",erase_it->ID);
+                        if (VERBOSITY) 
+                            printf("del repeat %d\n",erase_it->ID);
                         for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                             if (*it_v1 == *erase_it) {
                                 it_v1->ID = -1;
@@ -631,7 +670,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 if (del)
                     continue;
                 if (it->second.R.size() > next_it->second.L.size()) {
-                    printf("pop %d\n",it->second.R.back().ID);
+                    if (VERBOSITY) 
+                        printf("pop %d\n",it->second.R.back().ID);
                     for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                         if (*it_v1 == it->second.R.back()) {
                             it_v1->ID = -1;
@@ -640,7 +680,8 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                     it->second.R.pop_back();
                 }
                 else {
-                    printf("pop %d\n",next_it->second.L.back().ID);
+                    if (VERBOSITY) 
+                        printf("pop %d\n",next_it->second.L.back().ID);
                     for (auto it_v1=v1.begin(); it_v1!=v1.end(); it_v1++) {
                         if (*it_v1 == next_it->second.L.back()) {
                             it_v1->ID = -1;
@@ -699,17 +740,19 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 idx2++;
             }
         }        
+        if (VERBOSITY) {
+            printf ("LCS ans1\n");
+            for (auto it=ans1.begin(); it!=ans1.end(); it++) {
+                printf ("%d/%d ", it->first,it->second);
+            }
+            printf ("\n");
+            printf ("LCS ans2\n");
+            for (auto it=ans2.begin(); it!=ans2.end(); it++) {
+                printf ("%d/%d ", it->first,it->second);
+            }
+            printf ("\n");           
+        }
 
-        printf ("LCS ans1\n");
-        for (auto it=ans1.begin(); it!=ans1.end(); it++) {
-            printf ("%d/%d ", it->first,it->second);
-        }
-        printf ("\n");
-        printf ("LCS ans2\n");
-        for (auto it=ans2.begin(); it!=ans2.end(); it++) {
-            printf ("%d/%d ", it->first,it->second);
-        }
-        printf ("\n");
         vector<int> list1, list2;
         for (int i=0; i<ans1.size(); i++){
             list1.push_back(ans1.at(i).first);
@@ -739,9 +782,11 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             }
             for (auto it1=ans1.begin(); it1!=ans1.end(); it1++) {
                 if (net_appearnum[it1->first]>1 && it1->first!=-1) {
-                    printf("ans1 net_appearnum[%d] = %d\n",it1->first,net_appearnum[it1->first]);
+                    if (VERBOSITY) 
+                        printf("ans1 net_appearnum[%d] = %d\n",it1->first,net_appearnum[it1->first]);
                     net_appearnum[it1->first]--;
-                    printf("ans1 net_appearnum[%d]-- = %d\n",it1->first,net_appearnum[it1->first]);
+                    if (VERBOSITY)     
+                        printf("ans1 net_appearnum[%d]-- = %d\n",it1->first,net_appearnum[it1->first]);
                     it1->first=-1;
                 }
             }
@@ -757,9 +802,11 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             }
             for (auto it2=ans2.begin(); it2!=ans2.end(); it2++) {
                 if (net_appearnum[it2->first]>1 && it2->first!=-1) {
-                    printf("ans2 net_appearnum[%d] = %d\n",it2->first,net_appearnum[it2->first]);
+                    if (VERBOSITY) 
+                        printf("ans2 net_appearnum[%d] = %d\n",it2->first,net_appearnum[it2->first]);
                     net_appearnum[it2->first]--;
-                    printf("ans2 net_appearnum[%d]-- = %d\n",it2->first,net_appearnum[it2->first]);
+                    if (VERBOSITY) 
+                        printf("ans2 net_appearnum[%d]-- = %d\n",it2->first,net_appearnum[it2->first]);
                     it2->first=-1;
                 }
             }
@@ -792,11 +839,14 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             }
         }
         if (ans1.size() > best_ans.first.size()) {
-            printf("\nans1.size=%d  best_ans.first.size=%d\n",ans1.size(),best_ans.first.size());
-            printf("best ans assign\n");
-            for (auto it=ans1.begin(); it!=ans1.end(); it++) {
-                printf("%d ",it->first);
-            }printf("\n\n");
+            // printf("\nans1.size=%d  best_ans.first.size=%d\n",ans1.size(),best_ans.first.size());
+            if (VERBOSITY)  {
+                printf("best ans assign\n");
+                for (auto it=ans1.begin(); it!=ans1.end(); it++) {
+                    printf("%d ",it->first);
+                }printf("\n\n");                
+            }
+
             best_ans = {ans1,ans2};
         }
 
@@ -847,6 +897,12 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             for (auto it=ans2.begin(); it!=ans2.end(); it++) {
                 if (it->first != -1)
                     trim_ans2.push_back(*it);
+            }
+            if (VERBOSITY)  {
+                printf("ans trim:\n");
+                for (auto nid=trim_ans1.begin(); nid!=trim_ans1.end(); nid++) {
+                    printf("%d ",nid->first);
+                }printf("\n");
             }
             best_ans={trim_ans1,trim_ans2};
             break;
@@ -921,3 +977,6 @@ set<int>  test_crossing(const vector<Line>& line_list, const Line& line) {
     return ans;
 }
 
+void BFS(map<int,set<int>> adjacent_list, map<int,vertex> vertex_list) {
+
+}

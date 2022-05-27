@@ -60,7 +60,7 @@ void Parser::read_inputfile() {
     print_diff();
     read_layer();
     read_obs();
-    // print_netlist();
+    print_netlist();
 }
 
 void Parser::read_obs() {
@@ -524,12 +524,20 @@ void Parser::read_netlist() {
         auto P=*p;
         // printf("pin name:%s\n",p->pin_name.c_str());
         if (p->comp_name==router->CPU_name) {
+            if (p->net_ID==22)
+                printf("break point\n");
             if (router->net_list.at(p->net_ID).net_pinID.size()==2) {
                 Pin p0=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(0));
                 Pin p1=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(1));
-                if (p0.pin_name.find(router->CPU_name)==std::string::npos)
+                if (p0.comp_name == p1.comp_name) {
+                    printf("ignore pin:%d\n",p->pin_ID);
+                    p->ddr_name = "IGNORE";
+                    p->ignore = true;
+                    router->net_list.at(p->net_ID).ignore = true;
+                }
+                if (p0.comp_name!=router->CPU_name)
                     p->ddr_name = p0.comp_name;
-                else
+                else if (p1.pin_name!=router->CPU_name)
                     p->ddr_name = p1.comp_name;
 
             }
@@ -583,26 +591,41 @@ void Parser::print_layer() {
 }
 
 void Parser::print_group() {
+    // for (auto g=router->group_list.begin(); g!=router->group_list.end(); g++) {
+    //     for (auto nid=g->begin(); nid!=g->end(); nid++) {
+    //         printf("net %s    ",router->net_list.at(*nid).net_name.c_str());
+    //         for (auto bg=router->net_list.at(*nid).belong_group.begin(); bg!=router->net_list.at(*nid).belong_group.end(); bg++){
+    //             printf("%s  ",(*bg).c_str());
+    //         }
+    //     printf("\n");
+    //     }
+    // }
+    int idx_g(0);
     for (auto g=router->group_list.begin(); g!=router->group_list.end(); g++) {
+        printf("group:%d  ",idx_g);
         for (auto nid=g->begin(); nid!=g->end(); nid++) {
-            printf("net %s    ",router->net_list.at(*nid).net_name.c_str());
-            for (auto bg=router->net_list.at(*nid).belong_group.begin(); bg!=router->net_list.at(*nid).belong_group.end(); bg++){
-                printf("%s  ",(*bg).c_str());
-            }
-        printf("\n");
+            printf("net %d    ",router->net_list.at(*nid).net_ID);
+            // for (auto bg=router->net_list.at(*nid).belong_group.begin(); bg!=router->net_list.at(*nid).belong_group.end(); bg++){
+            //     printf("%s  ",(*bg).c_str());
+            // }
         }
+        printf("\n");
+        idx_g++;
     }
 }
 
 void Parser::print_netlist(){
     for (auto n=router->net_list.begin(); n!=router->net_list.end(); n++) {
         printf("net %d  %s  #pin %d ", n->net_ID, n->net_name.c_str(),n->net_pinID.size());
-        cout<<"  is2pin_net: "<<n->is2pin_net<<endl;
+        cout<<" in"<<n->ignore<<" is2pin_net: "<<n->is2pin_net<<endl;
         for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
-            printf("pin id: %d CPU side:%d pin name: %s comp:%s, ddr:%s pos(%d,%d)\n",router->pin_list.at(*pid).pin_ID,router->pin_list.at(*pid).CPU_side, 
-                                                                router->pin_list.at(*pid).pin_name.c_str(),router->pin_list.at(*pid).comp_name.c_str(), 
-                                                                router->pin_list.at(*pid).ddr_name.c_str(),router->pin_list.at(*pid).real_pos.X, 
-                                                                router->pin_list.at(*pid).real_pos.Y);
+            printf("pin id: %d  CPU side:%d pin name: %s comp:%s, ddr:%s pos(%d,%d)",
+                router->pin_list.at(*pid).pin_ID, 
+                router->pin_list.at(*pid).CPU_side, 
+                router->pin_list.at(*pid).pin_name.c_str(),router->pin_list.at(*pid).comp_name.c_str(), 
+                router->pin_list.at(*pid).ddr_name.c_str(),router->pin_list.at(*pid).real_pos.X, 
+                router->pin_list.at(*pid).real_pos.Y);
+            cout<<" ignore: "<<router->pin_list.at(*pid).ignore<<"\n";
         }
         printf("\n");
     }

@@ -26,12 +26,14 @@ int main(int argc, char** argv) {
     coarse_y_length = (WIRE_WIDTH+MIN_SPACING)*cell_coe;
     fine_x_length = (WIRE_WIDTH+MIN_SPACING)*cell_coe/level_coe;
     fine_y_length = (WIRE_WIDTH+MIN_SPACING)*cell_coe/level_coe;
-    BLMR* router = new BLMR;
-    string input_file = "./input2/outb_14/b_14";
+    GR* router = new GR;
+    string input_file = "./input3/5/5";
     Parser parser(router,input_file);
     parser.read_inputfile();
     router->merge_group();
     router->construct_3DGCells();
     router->partition();
+    // router->Golbal_routing();
+    // router->Golbal_routing(router->all_net.at(0));
     output_gds(input_file, router);
 }

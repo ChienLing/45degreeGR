@@ -4,13 +4,13 @@ CXXFLAGS = -O3 -std=c++11
 
 all: $(EXE)
 
-$(EXE): Structure.o BLMR.o Parser.o Func.o IO_interface.o main.o 
+$(EXE): Structure.o GR.o Parser.o Func.o IO_interface.o main.o 
 	$(CXX) $^ $(CXXFLAGS) -o $@ 
 	
 $main.o: main.cpp  
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$BLMR.o: BLMR.cpp BLMR.h Func.h
+$GR.o: GR.cpp GR.h Func.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 	
 $Parser.o: Parser.cpp Parser.h 

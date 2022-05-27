@@ -1,15 +1,15 @@
 #ifndef _PARSER_H_
 #define _PARSER_H_
-#include "BLMR.h"
+#include "GR.h"
 extern int MIN_SPACING;
 extern int WIRE_WIDTH;
 extern int obs_ext;
 class Parser{
     public:
-    BLMR* router;
+    GR* router;
     std::string iFile_name;
     Parser();
-    Parser(BLMR* r, std::string ifile):router(r), iFile_name(ifile){}
+    Parser(GR* r, std::string ifile):router(r), iFile_name(ifile){}
     void read_obs();
     void read_drc();
     void read_diff();

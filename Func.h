@@ -11,6 +11,7 @@
 #include "Structure.h"
 extern int MIN_SPACING;
 extern int WIRE_WIDTH;
+extern double pitch_extend_coe;
 // namespace my
 // {
     struct DPnode {
@@ -37,6 +38,17 @@ struct decode_node {
         return (this->ID==_dn.ID && this->last_or_next==_dn.last_or_next);
     }
 };
+
+struct vertex
+{
+public:
+    int ID;
+    int comp;
+    vertex():ID(-1), comp(-1){}
+};
+
+
+bool out_of_bdy(const Coor& coor,const Coor& diagonal_coor);
 int find_root(std::vector<int>& root_table, int idx);
 bool occupy (Boundary b1, Boundary b2);
 int overlap_area(Boundary b1, Boundary b2);
@@ -46,7 +58,7 @@ std::vector<int> LCS(const std::vector<std::vector<int>>& v1, const std::vector<
 std::vector<int> LCS(const std::vector<int>& v1, const std::vector<int>& v2);
 // std::vector<int> LCS(const std::vector<std::vector<int>>& v1, const std::vector<std::vector<int>>& v2, 
 //                      const std::vector<std::pair<int,int>>& dp_list, std::vector<std::pair<int,int>>& decode_table);
-                     
+bool coor_less_x_less_y(const Coor _c1, const Coor _c2)  ;         
 bool pin_less_x (const Pin* _p1, const Pin* _p2) ;
 bool pin_greater_x (const Pin* _p1, const Pin* _p2) ;
 bool pin_less_y (const Pin* _p1, const Pin* _p2) ;
