@@ -34,6 +34,7 @@ public:
     std::vector<Diff> diff_list;
     std::vector<std::string> layer_list;
     std::vector<std::vector<int>> group_list;
+    std::vector<Segment> seg_list;
 
     std::vector<std::vector<int>> all_net;
     std::vector<std::vector<int>> merged_groupID;//big group:small group ID
@@ -58,8 +59,7 @@ public:
     std::vector<std::vector<std::vector<std::pair<int,int>>>> CPU_LCS_group;
     std::vector<std::vector<std::vector<std::pair<int,int>>>> DDR_LCS_group;
     std::vector<std::vector<std::map<int,Line>>> LCS_group_net_line_align_bdy;
-
-
+    std::vector<std::vector<Line>> l_restnet_line;
     std::map<std::pair<int,int>,int> direction;
     std::vector<std::vector<std::vector<Cell>>> coarse_GRcell;
     std::vector<std::vector<std::vector<Cell>>> fine_GRcell;
@@ -68,6 +68,8 @@ public:
 
     std::vector<std::vector<std::vector<int>>>cluster_relative_position;//layer : nets order
     std::vector<std::vector<Cluster>> GR_unit;
+
+    std::vector<std::map<int,Edge>> edge_table;
 
     GR();
     Pin* get_cpupin(const Net& n);
@@ -98,6 +100,8 @@ public:
     void update_forbidden_region(std::vector<std::vector<std::vector<Cell>>>& GRmap, Cluster& c, bool coarse);
     void add_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void remove_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
+    void AR_RSRC_allocate(std::string filename);
+
 };
 
 

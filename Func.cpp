@@ -5,6 +5,20 @@ using namespace std;
 #define X first
 #define Y second
 #define VERBOSITY false
+void SplitString(const std::string& s, const std::string& c, std::vector<std::string>& v) {
+      std::string::size_type pos1, pos2;
+      pos2 = s.find(c);
+      pos1 = 0;
+      while(std::string::npos != pos2)
+      {
+        v.push_back(s.substr(pos1, pos2-pos1));
+     
+        pos1 = pos2 + c.size();
+        pos2 = s.find(c, pos1);
+      }
+      if(pos1 != s.length())
+        v.push_back(s.substr(pos1));
+}
 bool out_of_bdy(const Coor& coor,const Coor& diagonal_coor) {
     if (coor.x <0 || coor.y<0 || coor.z<0)
         return true;
@@ -971,12 +985,39 @@ set<int>  test_crossing(const vector<Line>& line_list, const Line& line) {
     for (auto l=line_list.begin(); l!=line_list.end(); l++) {
         int i=l->net;
         if (line_crossing(*l,line)) {
-            ans.insert(l->net);
+                ans.insert(l->net);
+        }
+    }
+    return ans;
+}
+vector<Line>  test_crossing_Line(const vector<Line>& line_list, const Line& line) {
+    vector<Line> ans;
+    for (auto l=line_list.begin(); l!=line_list.end(); l++) {
+        int i=l->net;
+        if (line_crossing(*l,line)) {
+            ans.push_back(*l);
         }
     }
     return ans;
 }
 
-void BFS(map<int,set<int>> adjacent_list, map<int,vertex> vertex_list) {
+void separate_comp(map<int,set<int>> adjacent_list, map<int,vertex> vertex_list) {
+    int comp(0);
+    for (auto v=vertex_list.begin(); v!=vertex_list.end(); v++) {
+        if (v->second.comp!=-1) 
+            continue;
+        queue<int> Q; Q.push(v->second.ID);
+        while (!Q.empty()) {
+            int temp_vid=Q.front();
+            Q.pop();
+            for (auto adj_v=adjacent_list.at(temp_vid).begin(); adj_v!=adjacent_list.at(temp_vid).end(); adj_v++) {
+                Q.push(*adj_v);
+                vertex_list.at(*adj_v).comp = comp;
+            }
+        }
+        comp++;
+    }
+}
+void BFS() {
 
 }

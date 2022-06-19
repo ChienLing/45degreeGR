@@ -45,9 +45,10 @@ public:
     int ID;
     int comp;
     vertex():ID(-1), comp(-1){}
+    vertex(int id):ID(id), comp(-1){}
 };
 
-
+void SplitString(const std::string& s, const std::string& c, std::vector<std::string>& v);
 bool out_of_bdy(const Coor& coor,const Coor& diagonal_coor);
 int find_root(std::vector<int>& root_table, int idx);
 bool occupy (Boundary b1, Boundary b2);
@@ -80,4 +81,5 @@ bool line_crossing(const Line& line1, const Line& line2);
 
 std::set<int> test_crossing(const std::map<int,Line>& line_list, const Line& line);
 std::set<int> test_crossing(const std::vector<Line>& line_list, const Line& line);
+std::vector<Line> test_crossing_Line(const std::vector<Line>& line_list, const Line& line);
 #endif

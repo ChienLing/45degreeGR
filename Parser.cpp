@@ -1,4 +1,5 @@
 #include "Parser.h"
+#include "Func.h"
 #define X first
 #define Y second
 using namespace std;
@@ -8,21 +9,21 @@ int WIRE_WIDTH = -1;
 int obs_ext = 2000;
 
 
-void SplitString(const std::string& s, const std::string& c, std::vector<std::string>& v)
-{
-      std::string::size_type pos1, pos2;
-      pos2 = s.find(c);
-      pos1 = 0;
-      while(std::string::npos != pos2)
-      {
-        v.push_back(s.substr(pos1, pos2-pos1));
+// void SplitString(const std::string& s, const std::string& c, std::vector<std::string>& v)
+// {
+//       std::string::size_type pos1, pos2;
+//       pos2 = s.find(c);
+//       pos1 = 0;
+//       while(std::string::npos != pos2)
+//       {
+//         v.push_back(s.substr(pos1, pos2-pos1));
      
-        pos1 = pos2 + c.size();
-        pos2 = s.find(c, pos1);
-      }
-      if(pos1 != s.length())
-        v.push_back(s.substr(pos1));
-} 
+//         pos1 = pos2 + c.size();
+//         pos2 = s.find(c, pos1);
+//       }
+//       if(pos1 != s.length())
+//         v.push_back(s.substr(pos1));
+// } 
 std::string &trim(std::string &s)
 {
     if (s.empty())
@@ -530,7 +531,7 @@ void Parser::read_netlist() {
                 Pin p0=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(0));
                 Pin p1=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(1));
                 if (p0.comp_name == p1.comp_name) {
-                    printf("ignore pin:%d\n",p->pin_ID);
+                    printf("ignore net%d pin:%d\n",p->net_ID, p->pin_ID);
                     p->ddr_name = "IGNORE";
                     p->ignore = true;
                     router->net_list.at(p->net_ID).ignore = true;
@@ -545,8 +546,19 @@ void Parser::read_netlist() {
                 p->ddr_name = "ADR";
             p->CPU_side = true;
         }
-        else 
+        else {
+            if (router->net_list.at(p->net_ID).net_pinID.size()==2) {
+                Pin p0=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(0));
+                Pin p1=router->pin_list.at(router->net_list.at(p->net_ID).net_pinID.at(1));
+                if (p0.comp_name!=router->CPU_name && p1.comp_name!=router->CPU_name) {
+                    printf("ignore net%d pin:%d\n",p->net_ID, p->pin_ID);
+                    p->ddr_name = "IGNORE";
+                    p->ignore = true;
+                    router->net_list.at(p->net_ID).ignore = true;
+                }
+            }
             p->CPU_side = false;
+        }
     }
 
     for (auto comp=router->comp_boundary.begin(); comp!=router->comp_boundary.end(); comp++) {

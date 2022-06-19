@@ -1,5 +1,6 @@
 #include "GR.h"
 #include "Func.h"
+#include "IO_interface.h"
 using namespace std;
 #define X first
 #define Y second
@@ -350,7 +351,7 @@ void GR::planning() {
             printf("ddr:%s, escape direct: %d\n",comp->first.c_str(),comp->second);
         }
     for (auto n=net_list.begin(); n!=net_list.end(); n++) {
-        if (!n->is2pin_net)
+        if (!n->is2pin_net || n->ignore)
             continue;
         Pin* cpu_p=get_cpupin(*n);
         Pin* ddr_p=get_ddrpin(*n);
@@ -1325,7 +1326,7 @@ void GR::Astar(vector<vector<vector<Cell>>>& GRmap, Net& net, bool coarse) {
                     }
                 }
                 temp_pn.cost += cost;
-                temp_pn.routed_wirelength +=wl;
+                temp_pn.ER_routed_wirelength +=wl;
                 PQ.push(temp_pn);
             }
         }
@@ -1382,10 +1383,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, Sub_gn& sg_net, bool co
         // printf("%f",top_pn.cost);
         // printf("top_pn coor: (%d,%d,%d) routed_WL:%f cost:%f + ERL:%f = %f \n",
         // top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z,
-        // top_pn.routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
+        // top_pn.ER_routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
         //                          top_pn.cost+top_pn.esti_routing_length);
-        if ( (top_pn.cost+top_pn.esti_routing_length+top_pn.routed_wirelength) > 
-             (best_pn.cost+best_pn.routed_wirelength) ) {
+        if ( (top_pn.cost+top_pn.esti_routing_length+top_pn.ER_routed_wirelength) > 
+             (best_pn.cost+best_pn.ER_routed_wirelength) ) {
             break;
         }
         f (i,-1,1) {
@@ -1493,8 +1494,8 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, Sub_gn& sg_net, bool co
                     }
                 }
                 temp_pn.cost += cost;
-                temp_pn.routed_wirelength +=wl;
-                if (temp_pn.path.back()==end && (temp_pn.cost+temp_pn.esti_routing_length+temp_pn.routed_wirelength) < (best_pn.cost+best_pn.routed_wirelength)) {
+                temp_pn.ER_routed_wirelength +=wl;
+                if (temp_pn.path.back()==end && (temp_pn.cost+temp_pn.esti_routing_length+temp_pn.ER_routed_wirelength) < (best_pn.cost+best_pn.ER_routed_wirelength)) {
                     best_pn=temp_pn;
                     // min_cost = temp_pn.cost;
                     continue;
@@ -1664,10 +1665,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
         // printf("%f",top_pn.cost);
         // printf("top_pn coor: (%d,%d,%d) routed_WL:%f cost:%f + ERL:%f = %f \n",
         // top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z,
-        // top_pn.routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
+        // top_pn.ER_routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
         //                          top_pn.cost+top_pn.esti_routing_length);
-        if ( (top_pn.cost+top_pn.esti_routing_length+top_pn.routed_wirelength) > 
-             (best_pn.cost+best_pn.routed_wirelength) ) {
+        if ( (top_pn.cost+top_pn.esti_routing_length+top_pn.ER_routed_wirelength) > 
+             (best_pn.cost+best_pn.ER_routed_wirelength) ) {
             break;
         }
         if (idx>150000 && best_pn.esti_routing_length==0) {
@@ -1693,13 +1694,13 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                     if (j==0)   
                         continue;
                     else if (j==1) {
-                        double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[BOT];
+                        double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT];
                         if (r<cluster.demand_val)
                             continue;   
                         cost=1.0/(1+exp(r));
                     }
                     else {
-                        double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[TOP];
+                        double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP];
                         if (r<cluster.demand_val)
                             continue;   
                         cost=1.0/(1+exp(r));
@@ -1710,13 +1711,13 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                 else if (j==0) {
                     wl=1.0;
                     if (i==1) {
-                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[LEFT];
+                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
                         if (r<cluster.demand_val)
                             continue;
                         cost=1.0/(1+exp(r));
                     }
                     else {
-                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[RIGHT];
+                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
                         if (r<cluster.demand_val)
                             continue;
                         cost=1.0/(1+exp(r));
@@ -1727,10 +1728,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                     wl=1.4;
                     if (i*j==-1) {//BR or TL
                         if (i==-1) {//TL
-                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[LEFT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[LEFT];
-                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[TOP];
-                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[RIGHT];
-                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[BOT];
+                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[LEFT];
+                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP];
+                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
+                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT];
                             double x_cost = 1.0/(1+exp(xr))+1.0/(1+exp(next_xr));
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
@@ -1740,10 +1741,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                             cost = x_cost+y_cost;
                         }
                         else {//BR
-                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[RIGHT];
-                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[BOT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[BOT];
-                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[LEFT];
-                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[TOP];
+                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT];
+                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[BOT];
+                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
+                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP];
                             double x_cost = 1.0/(1+exp(xr))+1.0/(1+exp(next_xr));
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
@@ -1761,10 +1762,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                             auto temp1=map->at(coor.z).at(coor.x).at(coor.y);
                             auto temp2=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
                             auto temp3=map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[RIGHT];
-                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[LEFT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[LEFT];
-                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[BOT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[BOT];
-                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[RIGHT];
-                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[TOP];
+                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[LEFT];
+                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[BOT];
+                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
+                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP];
                             double x_cost = 1.0/(1+exp(xr))+1.0/(1+exp(next_xr));
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
@@ -1775,10 +1776,10 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                             cost = (x_cost+y_cost)/2.0;
                         }
                         else {
-                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[RIGHT];
-                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP]-map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_temp_demand[TOP];
-                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[LEFT];
-                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT]-map->at(coor.z).at(coor.x).at(coor.y).edge_temp_demand[BOT];
+                            double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT];
+                            double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP];
+                            double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
+                            double next_yr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT];
                             double x_cost = 1.0/(1+exp(xr))+1.0/(1+exp(next_xr));
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
@@ -1790,8 +1791,8 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                     }
                 }
                 temp_pn.cost += cost;
-                temp_pn.routed_wirelength +=wl;
-                if (temp_pn.path.back()==end && (temp_pn.cost+temp_pn.esti_routing_length+temp_pn.routed_wirelength) < (best_pn.cost+best_pn.routed_wirelength)) {
+                temp_pn.ER_routed_wirelength +=wl;
+                if (temp_pn.path.back()==end && (temp_pn.cost+temp_pn.esti_routing_length+temp_pn.ER_routed_wirelength) < (best_pn.cost+best_pn.ER_routed_wirelength)) {
                     best_pn=temp_pn;
                     // min_cost = temp_pn.cost;
                     continue;
@@ -1808,9 +1809,6 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
         //     } 
         // }
         // printf("\n");
-        f (k,-1,1) {
-
-        }
         idx++;
     }
     printf("best path: ");
@@ -1819,7 +1817,7 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
         printf("(%d,%d,%d)->", it->x,it->y,it->z);
     }
     printf("end\n");
-    
+    //update resource
     for (auto it=best_pn.path.begin(); it!=best_pn.path.end(); it++) {
         auto next_it=it;    next_it++;
         auto temp0 = *it;
@@ -1828,79 +1826,140 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
             break;
         if (next_it->x-it->x==0 || next_it->y-it->y==0) {
             if (next_it->x-it->x==1) {
-                map->at(it->z).at(it->x).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
-                map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
+                // map->at(it->z).at(it->x).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                // map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_demand[RIGHT]+=cluster.demand_val;
+                map->at(it->z).at(it->x+1).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_r[RIGHT]-=cluster.demand_val;
+                map->at(it->z).at(it->x+1).at(it->y).edge_r[LEFT]-=cluster.demand_val;
 
             }
             else if (next_it->x-it->x==-1) {
-                map->at(it->z).at(it->x).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
-                map->at(it->z).at(it->x-1).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
+                map->at(it->z).at(it->x-1).at(it->y).edge_demand[RIGHT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_r[LEFT]+=cluster.demand_val;
+                map->at(it->z).at(it->x-1).at(it->y).edge_r[RIGHT]+=cluster.demand_val;
             }
             if (next_it->y-it->y==1) {
-                map->at(it->z).at(it->x).at(it->y).edge_temp_demand[TOP]+=cluster.demand_val;
-                map->at(it->z).at(it->x).at(it->y+1).edge_temp_demand[BOT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_demand[TOP]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y+1).edge_demand[BOT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_r[TOP]-=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y+1).edge_r[BOT]-=cluster.demand_val;
 
             }
             else if (next_it->y-it->y==-1) {
-                map->at(it->z).at(it->x).at(it->y).edge_temp_demand[BOT]+=cluster.demand_val;
-                map->at(it->z).at(it->x).at(it->y-1).edge_temp_demand[TOP]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_demand[BOT]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y-1).edge_demand[TOP]+=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y).edge_r[BOT]-=cluster.demand_val;
+                map->at(it->z).at(it->x).at(it->y-1).edge_r[TOP]-=cluster.demand_val;
             }
         }
         else {
             if ( (next_it->x-it->x)* (next_it->y-it->y) == -1) {//TL or BR
                 if (next_it->x-it->x==-1) {//TL
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_demand[RIGHT]-=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[TOP]+=cluster.demand_val;
-                    map->at(it->z).at(it->x).at(it->y+1).edge_temp_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_demand[BOT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y+1).edge_temp_demand[LEFT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y+1).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y+1).edge_demand[RIGHT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x-1).at(it->y).edge_temp_demand[TOP]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y+1).edge_temp_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y+1).edge_demand[BOT]+=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y).edge_r[LEFT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_r[RIGHT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y).edge_r[TOP]-=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_r[BOT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y+1).edge_r[LEFT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y+1).edge_r[RIGHT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x-1).at(it->y).edge_r[TOP]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y+1).edge_r[BOT]-=cluster.demand_val;
                 }
                 else {//BR
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[BOT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x).at(it->y-1).edge_temp_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_demand[TOP]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y-1).edge_temp_demand[RIGHT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y-1).edge_temp_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y-1).edge_demand[LEFT]+=cluster.demand_val;
                     
-                    map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[BOT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y-1).edge_temp_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_demand[BOT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y-1).edge_demand[TOP]-=cluster.demand_val;
+
+                    
+                    map->at(it->z).at(it->x).at(it->y).edge_r[RIGHT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_r[LEFT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y).edge_r[BOT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_r[TOP]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y-1).edge_r[RIGHT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y-1).edge_r[LEFT]-=cluster.demand_val;
+                    
+                    map->at(it->z).at(it->x+1).at(it->y).edge_r[BOT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y-1).edge_r[TOP]-=cluster.demand_val;
                 }
             }
             if ( (next_it->x-it->x)* (next_it->y-it->y) == 1) {//TR or BL
                 if (next_it->x-it->x==-1) {//BL
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_demand[RIGHT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[BOT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x).at(it->y-1).edge_temp_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_demand[TOP]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y-1).edge_temp_demand[LEFT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y-1).edge_temp_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y-1).edge_demand[RIGHT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x-1).at(it->y).edge_temp_demand[BOT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x-1).at(it->y-1).edge_temp_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y-1).edge_demand[TOP]+=cluster.demand_val;
+
+                    
+                    map->at(it->z).at(it->x).at(it->y).edge_r[LEFT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y).edge_r[RIGHT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y).edge_r[BOT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y-1).edge_r[TOP]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y-1).edge_r[LEFT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y-1).edge_r[RIGHT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x-1).at(it->y).edge_r[BOT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x-1).at(it->y-1).edge_r[TOP]-=cluster.demand_val;
                 }
                 else {//TR
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[RIGHT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_demand[LEFT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y).edge_temp_demand[TOP]+=cluster.demand_val;
-                    map->at(it->z).at(it->x).at(it->y+1).edge_temp_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y).edge_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_demand[BOT]+=cluster.demand_val;
 
-                    map->at(it->z).at(it->x).at(it->y+1).edge_temp_demand[RIGHT]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y+1).edge_temp_demand[LEFT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_demand[RIGHT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y+1).edge_demand[LEFT]+=cluster.demand_val;
                     
-                    map->at(it->z).at(it->x+1).at(it->y).edge_temp_demand[TOP]+=cluster.demand_val;
-                    map->at(it->z).at(it->x+1).at(it->y+1).edge_temp_demand[BOT]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_demand[TOP]+=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y+1).edge_demand[BOT]+=cluster.demand_val;
+
+                    
+                    map->at(it->z).at(it->x).at(it->y).edge_r[RIGHT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y).edge_r[LEFT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y).edge_r[TOP]-=cluster.demand_val;
+                    map->at(it->z).at(it->x).at(it->y+1).edge_r[BOT]-=cluster.demand_val;
+
+                    map->at(it->z).at(it->x).at(it->y+1).edge_r[RIGHT]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y+1).edge_r[LEFT]-=cluster.demand_val;
+                    
+                    map->at(it->z).at(it->x+1).at(it->y).edge_r[TOP]-=cluster.demand_val;
+                    map->at(it->z).at(it->x+1).at(it->y+1).edge_r[BOT]-=cluster.demand_val;
                 }
             }
         }
@@ -1964,7 +2023,39 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
         }
         layer++;
     }
-
+    for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
+        for(auto cluster=l->begin(); cluster!=l->end(); cluster++) {
+            double AR_wire_length(0);
+            for (auto s=cluster->path.begin(); s!=cluster->path.end(); s++) {
+                auto t=s;   t++;
+                if (t == cluster->path.end())
+                    break;
+                if ((s->x-t->x)*(s->y-t->y)==0)
+                    AR_wire_length += coarse_x_length;
+                else
+                    AR_wire_length += coarse_x_length*sqrt(2);
+            }
+            for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
+                auto n = &net_list.at(*nid);
+                n->AR_routed_wirelength = AR_wire_length;//become int
+            }
+        }
+    }
+    for (auto g=merged_group.begin(); g!=merged_group.end(); g++) {
+        int group_max_wl(0);
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            auto n = &net_list.at(*nid);
+            if (n->ER_routed_wirelength+n->AR_routed_wirelength > group_max_wl) 
+                group_max_wl = n->ER_routed_wirelength+n->AR_routed_wirelength;
+        }
+        for (auto nid=g->begin(); nid!=g->end(); nid++) {
+            auto n = &net_list.at(*nid);
+            n->slack_wirelength = group_max_wl - n->ER_routed_wirelength - n->AR_routed_wirelength;
+            // printf("net: %d slack wl:%d\n", n->net_ID, n->slack_wirelength);
+        }
+        
+    }
+    printf("Golbal_routing END\n");
 }
 
 void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Cluster>>& GR_unit) {
@@ -1979,7 +2070,7 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
         }
         Pin* cpu_p=get_cpupin(net_list.at(*nid));
         Pin* ddr_p=get_ddrpin(net_list.at(*nid));
-        // printf("net:%d cpu_p->layer:%d\n",*nid, cpu_p->layer);
+        printf("net:%d cpu_p->layer:%d\n",*nid, cpu_p->layer);
         layer_nets.at(cpu_p->layer).push_back(*nid);
     }
     int layer(0);
@@ -2771,41 +2862,28 @@ void GR::sort_LCS_input( map<string, vector<Pin*>>& ddr_ddrpin,  map<string, vec
 void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
     // vector<vector<vector<Line>>> LCS_group_net_line;
     // vector<vector<vector<Line>>> LCS_group_net_line_align_bdy;
-    vector<Line> restnet_line; //CPU         DDR
+                       //CPU DDR
+    vector<map<int,pair<Line,Line>>> restnet_line(can_use_layer_num); //CPU         DDR
     vector<map<int,vector<pair<Detour_info,Detour_info>>>> coarse_detour_info(CPU_LCS_group.size());
     vector<map<int,vector<pair<Detour_info,Detour_info>>>> fine_detour_info(CPU_LCS_group.size());
     //merged_g nid layer  CPU              DDR
     //escape line setting
     set_line(CPU_LCS_group,DDR_LCS_group);
-
+    std::vector<std::vector<std::map<int,Line>>> rest_net_line_align_bdy;
     // for (auto idx_g=0; idx_g<CPU_LCS_group.size();idx_g++) {
     for (auto idx_g=0; idx_g<1;idx_g++) {//only 2 pin nets
         map<int,vector<set<int>>> restnet_crossline;//rest net id : layer :cross net
         map<int,set<int>> restnet_cross_each; //rest line cross each other
         map<int,vertex> restnet_list;
-        for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
+        map<int,int> restnet_ID;
+        map<int,int> ID_restnet;
+        /* for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
             auto n=net_list.at(*nid);
             pair<int,int> ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
             pair<int,int> ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
             Line l(*nid,ep0,ep1);
             restnet_line.push_back(l);
-        }
-
-        //test line of rest net crossing other 'unrouted' line in each layer
-        for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
-            auto n=net_list.at(*nid);
-            pair<int,int> ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
-            pair<int,int> ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
-            Line l(*nid,ep0,ep1);
-            restnet_cross_each[*nid] = test_crossing(restnet_line,l);
-            // printf("rest net %d corss: ",*nid);
-            // for (auto it=restnet_cross_each[*nid].begin();it!=restnet_cross_each[*nid].end();it++) {
-            //     printf("%d ",*it);
-            // }printf("\n");
-        }  
-        for (auto nid=restnet_cross_each.begin();)
-        restnet_list[]
-        BFS(restnet_cross_each, restnet_list)
+         }*/
 
         //line of unrouted net cross the net in each layer       
         for (auto nid=rest_of_net.at(idx_g).begin(); nid!=rest_of_net.at(idx_g).end(); nid++) {
@@ -2817,9 +2895,9 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
             pair<int,int> ep0,ep1;
             auto p0 = &pin_list.at(n.net_pinID.at(0));
             auto p1 = &pin_list.at(n.net_pinID.at(1));
-            ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
-            ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
-            Line n_line1(*nid,ep0,ep1);// no usage
+            // ep0 = {pin_list.at(n.net_pinID.at(0)).real_pos.X , pin_list.at(n.net_pinID.at(0)).real_pos.Y};
+            // ep1 = {pin_list.at(n.net_pinID.at(1)).real_pos.X , pin_list.at(n.net_pinID.at(1)).real_pos.Y};
+            // Line n_line1(*nid,ep0,ep1);// no usage
             Line n_line2;
             {
                 if (p0->escape_dir == TOP) {
@@ -2850,25 +2928,30 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
             }
             for (int sub_idx_g=0; sub_idx_g<CPU_LCS_group.at(idx_g).size(); sub_idx_g++){
                 // set<int> crossing_net1 = test_crossing(LCS_group_net_line.at(idx_g).at(sub_idx_g),n_line1);
-                set<int> crossing_net2 = test_crossing(LCS_group_net_line_align_bdy.at(idx_g).at(sub_idx_g),n_line2);
+                set<int> crossing_net = test_crossing(LCS_group_net_line_align_bdy.at(idx_g).at(sub_idx_g),n_line2);
                 // printf("crossing_net1: ");
                 // for (auto cn=crossing_net1.begin(); cn!=crossing_net1.end(); cn++) {
                 //     printf("%d ",*cn);
                 // }
                 // printf("\n");
                 // restnet_crossline[*nid].insert(restnet_crossline[*nid].begin(),crossing_net1);
-                printf("crossing_net2: ");
-                for (auto cn=crossing_net2.begin(); cn!=crossing_net2.end(); cn++) {
+                printf("crossing_net: ");
+                for (auto cn=crossing_net.begin(); cn!=crossing_net.end(); cn++) {
                     printf("%d ",*cn);
                 }
                 printf("\n");
-                restnet_crossline[*nid].push_back(crossing_net2);
+                restnet_crossline[*nid].push_back(crossing_net);
             }
             printf("\n");
         }
+        int rn_idx(1);
         for (auto rest_net=restnet_crossline.begin(); rest_net!=restnet_crossline.end(); rest_net++) {
             // fine_detour_info.at(idx_g)[rest_net->first].resize(rest_net->second.size());
             // coarse_detour_info.at(idx_g)[rest_net->first].resize(rest_net->second.size());
+            
+            ID_restnet[rn_idx] = rest_net->first;
+            restnet_ID[rest_net->first] = rn_idx;
+            printf("restnet_ID[%d]\n",rest_net->first);
             Pin* cpu_p,*ddr_p;
             if (pin_list.at(net_list.at(rest_net->first).net_pinID.at(0)).CPU_side) {
                 cpu_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
@@ -2878,11 +2961,46 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                 cpu_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
                 ddr_p=&pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
             }
+            //rest net cpu pin fanout initial
+            if (cpu_p->escape_dir == TOP || cpu_p->escape_dir==BOT) {
+                cpu_p->fanout_pos.X = cpu_p->real_pos.X;
+                if (cpu_p->escape_dir == TOP) 
+                    cpu_p->fanout_pos.Y = comp_boundary.at(cpu_p->comp_name).top;
+                else 
+                    cpu_p->fanout_pos.Y = comp_boundary.at(cpu_p->comp_name).bot;
+                
+            }
+            else {
+                cpu_p->fanout_pos.Y = cpu_p->real_pos.Y;
+                if (cpu_p->escape_dir == RIGHT) 
+                    cpu_p->fanout_pos.X = comp_boundary.at(cpu_p->comp_name).right;
+                else 
+                    cpu_p->fanout_pos.X = comp_boundary.at(cpu_p->comp_name).left;
+            }
+            //rest net ddr pin fanout initial
+            if (ddr_p->escape_dir == TOP || ddr_p->escape_dir==BOT) {
+                ddr_p->fanout_pos.X = ddr_p->real_pos.X;
+                if (ddr_p->escape_dir == TOP) 
+                    ddr_p->fanout_pos.Y = comp_boundary.at(ddr_p->comp_name).top;
+                else 
+                    ddr_p->fanout_pos.Y = comp_boundary.at(ddr_p->comp_name).bot;
+                
+            }
+            else {
+                ddr_p->fanout_pos.Y = ddr_p->real_pos.Y;
+                if (ddr_p->escape_dir == RIGHT) 
+                    ddr_p->fanout_pos.X = comp_boundary.at(ddr_p->comp_name).right;
+                else 
+                    ddr_p->fanout_pos.X = comp_boundary.at(ddr_p->comp_name).left;
+            }
+
             int detour_dist(1e8);
             int layer(0);
             for (auto sub_g=rest_net->second.begin(); sub_g!=rest_net->second.end(); sub_g++) {//layer
                 printf ("layer %d\n",layer);
                 Boundary cpu_detour_region(cpu_p->real_pos.X,cpu_p->real_pos.Y,cpu_p->real_pos.X,cpu_p->real_pos.Y),ddr_detour_region(ddr_p->real_pos.X,ddr_p->real_pos.Y,ddr_p->real_pos.X,ddr_p->real_pos.Y);
+                int cpu_dist_x(0), cpu_dist_y(0), ddr_dist_x(0), ddr_dist_y(0);
+                Coor cpu_fanout(layer,cpu_p->real_pos.X, cpu_p->real_pos.Y), ddr_fanout(layer,ddr_p->real_pos.X, ddr_p->real_pos.Y);
                 for (auto cn=sub_g->begin(); cn!=sub_g->end(); cn++) {
                     Pin* cn_cpu_p,*cn_ddr_p;
                     if (pin_list.at(net_list.at(*cn).net_pinID.at(0)).CPU_side) {
@@ -2892,6 +3010,37 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                     else {
                         cn_cpu_p=&pin_list.at(net_list.at(*cn).net_pinID.at(1));
                         cn_ddr_p=&pin_list.at(net_list.at(*cn).net_pinID.at(0));
+                    }
+                    if (cpu_p->escape_dir == TOP || cpu_p->escape_dir == BOT) {
+                        if (abs (cn_cpu_p->fanout_pos.X-cpu_p->real_pos.X) > cpu_dist_x) {
+                            cpu_fanout.x = cn_cpu_p->fanout_pos.X;
+                            cpu_dist_x = cn_cpu_p->fanout_pos.X>cpu_p->real_pos.X?cn_cpu_p->fanout_pos.X-cpu_p->real_pos.X:cpu_p->real_pos.X-cn_cpu_p->fanout_pos.X;
+                        }
+                    }
+                    else if (cpu_p->escape_dir == RIGHT || cpu_p->escape_dir == LEFT) {
+                        if (abs (cn_cpu_p->fanout_pos.Y-cpu_p->real_pos.Y) > cpu_dist_y) {
+                            cpu_fanout.y = cn_cpu_p->fanout_pos.Y;
+                            cpu_dist_y = cn_cpu_p->fanout_pos.Y>cpu_p->real_pos.Y?cn_cpu_p->fanout_pos.Y-cpu_p->real_pos.Y:cpu_p->real_pos.Y-cn_cpu_p->fanout_pos.Y;
+                        }
+                    }
+                    else {
+                        printf("pin escape dir wrong!!!!!\n");
+                    }
+                    if (ddr_p->escape_dir == TOP || ddr_p->escape_dir == BOT) {
+                        if (abs (cn_ddr_p->fanout_pos.X-ddr_p->real_pos.X) > ddr_dist_x) {
+                            ddr_fanout.x = cn_ddr_p->fanout_pos.X;
+                            ddr_dist_x = cn_ddr_p->fanout_pos.X>ddr_p->real_pos.X?cn_ddr_p->fanout_pos.X-ddr_p->real_pos.X:ddr_p->real_pos.X-cn_ddr_p->fanout_pos.X;
+                        }
+                    }
+                    else if (ddr_p->escape_dir == RIGHT || ddr_p->escape_dir == LEFT) {
+                        if (abs (cn_ddr_p->fanout_pos.Y-ddr_p->real_pos.Y) > ddr_dist_y) {
+                            ddr_fanout.y = cn_ddr_p->fanout_pos.Y;
+                            ddr_dist_y = cn_ddr_p->fanout_pos.Y>ddr_p->real_pos.Y?cn_ddr_p->fanout_pos.Y-ddr_p->real_pos.Y:ddr_p->real_pos.Y-cn_ddr_p->fanout_pos.Y;
+                            ddr_fanout.x = ddr_p->escape_dir==RIGHT?comp_boundary.at(ddr_p->comp_name).right:comp_boundary.at(ddr_p->comp_name).left;
+                        }
+                    }
+                    else {
+                        printf("pin escape dir wrong!!!!!\n");
                     }
                     //CPU detour
                     if (cn_cpu_p->real_pos.X > cpu_detour_region.right) {
@@ -2906,6 +3055,18 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                     if (cn_cpu_p->real_pos.Y < cpu_detour_region.bot) {
                         cpu_detour_region.bot = cn_cpu_p->real_pos.Y;
                     }
+                    if (cn_cpu_p->fanout_pos.X > cpu_detour_region.right) {
+                        cpu_detour_region.right = cn_cpu_p->fanout_pos.X;
+                    }
+                    if (cn_cpu_p->fanout_pos.X < cpu_detour_region.left) {
+                        cpu_detour_region.left = cn_cpu_p->fanout_pos.X;
+                    }
+                    if (cn_cpu_p->fanout_pos.Y > cpu_detour_region.top) {
+                        cpu_detour_region.top = cn_cpu_p->fanout_pos.Y;
+                    }
+                    if (cn_cpu_p->fanout_pos.Y < cpu_detour_region.bot) {
+                        cpu_detour_region.bot = cn_cpu_p->fanout_pos.Y;
+                    }
                     //DDR detour
                     if (cn_ddr_p->real_pos.X > ddr_detour_region.right) {
                         ddr_detour_region.right = cn_ddr_p->real_pos.X;
@@ -2918,9 +3079,29 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                     }
                     if (cn_ddr_p->real_pos.Y < ddr_detour_region.bot) {
                         ddr_detour_region.bot = cn_ddr_p->real_pos.Y;
+                    }  
+                    if (cn_ddr_p->fanout_pos.X > ddr_detour_region.right) {
+                        ddr_detour_region.right = cn_ddr_p->fanout_pos.X;
+                    }
+                    if (cn_ddr_p->fanout_pos.X < ddr_detour_region.left) {
+                        ddr_detour_region.left = cn_ddr_p->fanout_pos.X;
+                    }
+                    if (cn_ddr_p->fanout_pos.Y > ddr_detour_region.top) {
+                        ddr_detour_region.top = cn_ddr_p->fanout_pos.Y;
+                    }
+                    if (cn_ddr_p->fanout_pos.Y < ddr_detour_region.bot) {
+                        ddr_detour_region.bot = cn_ddr_p->fanout_pos.Y;
                     }   
 
-                }    
+                }   
+                if (cpu_p->escape_dir == TOP || cpu_p->escape_dir == BOT)
+                    cpu_fanout.y = cpu_p->escape_dir==TOP?comp_boundary.at(cpu_p->comp_name).top:comp_boundary.at(cpu_p->comp_name).bot; 
+                else
+                    cpu_fanout.x = cpu_p->escape_dir==RIGHT?comp_boundary.at(cpu_p->comp_name).right:comp_boundary.at(cpu_p->comp_name).left;
+                if (ddr_p->escape_dir == TOP || ddr_p->escape_dir == BOT)
+                    ddr_fanout.y = ddr_p->escape_dir==TOP?comp_boundary.at(ddr_p->comp_name).top:comp_boundary.at(ddr_p->comp_name).bot;
+                else
+                    ddr_fanout.x = ddr_p->escape_dir==RIGHT?comp_boundary.at(ddr_p->comp_name).right:comp_boundary.at(ddr_p->comp_name).left;
                 Boundary cpu_coarse_bdy_coor, ddr_coarse_bdy_coor;
                 Boundary cpu_fine_bdy_coor, ddr_fine_bdy_coor;
                 {//assign detour boundary coor
@@ -2957,43 +3138,93 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                 // fine_detour_info.at(idx_g)[rest_net->first].push_back(pair<Detour_info,Detour_info>({Detour_info(rest_net->first,layer),Detour_info(rest_net->first,layer)}));
                 // rest_net_detour(fine_detour_info.at(idx_g)[rest_net->first].back().first ,1,0,cpu_fine_bdy_coor,cpu_p);
                 // rest_net_detour(fine_detour_info.at(idx_g)[rest_net->first].back().second,0,0,ddr_fine_bdy_coor,ddr_p);
+                int dd1 = coarse_detour_info.at(idx_g)[rest_net->first].back().first.detour_dist;
+                int dd2 = coarse_detour_info.at(idx_g)[rest_net->first].back().second.detour_dist;
+                restnet_line.at(layer)[rest_net->first].first = Line(rest_net->first,false, dd1,{cpu_fanout.x,cpu_fanout.y},ddr_p->fanout_pos);
+                restnet_line.at(layer)[rest_net->first].second = Line(rest_net->first,true, dd2,cpu_p->fanout_pos,{ddr_fanout.x,ddr_fanout.y});
+                printf("layer:%d net:%d CPU detour Line:(%d,%d)-(%d,%d)  DDR detour Line(%d,%d)-(%d,%d)\n",layer,rest_net->first,
+                                                cpu_fanout.x,cpu_fanout.y,ddr_p->fanout_pos.X, ddr_p->fanout_pos.Y,
+                                                cpu_p->fanout_pos.X,cpu_p->fanout_pos.Y,ddr_fanout.x,ddr_fanout.y);
                 layer++;
-            }printf ("\n");
-
+            }
+            printf ("\n");
+            rn_idx++;
         }
-        for (auto rest_net=coarse_detour_info.at(idx_g).begin();rest_net!=coarse_detour_info.at(idx_g).end(); rest_net++) {
-            Detour_info best_detour;
-            Pin* cpu_p, *ddr_p;
-            int temp1=rest_net->first;
-            if (pin_list.at(net_list.at(rest_net->first).net_pinID.at(0)).CPU_side) {
-                cpu_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
-                ddr_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
+
+        ///////////test line of rest net crossing other 'unrouted' line in each layer////////////
+        int cardinal_num = restnet_ID.size()*2;
+        int layer = 0;
+        l_restnet_line.resize(can_use_layer_num);
+        vector<string> CNF;
+        for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
+            vector<vector<Line>> adj_list(1);//no usage of index 0
+            printf("\n test renst net layer:%d\n",layer);
+            printf("restnet_ID size: %d\n",restnet_ID.size());
+            for (auto rn=l->begin(); rn!=l->end(); rn++) {
+                int new_nid = restnet_ID[rn->first]*2-1+cardinal_num*layer;
+                rn->second.first.temp_nid  = new_nid+rn->second.first.DDR_detour;
+                rn->second.second.temp_nid = new_nid+rn->second.second.DDR_detour;
+                l_restnet_line.at(layer).push_back(rn->second.first);
+                l_restnet_line.at(layer).push_back(rn->second.second);
+                printf("rn->first: %d\n",rn->first);
             }
-            else {
-                cpu_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(1));
-                ddr_p = &pin_list.at(net_list.at(rest_net->first).net_pinID.at(0));
-            }
-            // if (ddr_p->pin_ID == 379)
-            //     printf("break point\n");
-            for (auto layer_detour=rest_net->second.begin(); layer_detour!=rest_net->second.end(); layer_detour++) {
-                if (layer_detour->first.layer==0)
-                    continue;
-                // layer_detour->first.print();
-                // layer_detour->second.print();
-                if (layer_detour->first.detour_dist < layer_detour->second.detour_dist) {
-                    if (layer_detour->first.detour_dist <= best_detour.detour_dist)
-                        best_detour = layer_detour->first;
+            for (auto rn2=l_restnet_line.at(layer).begin(); rn2!=l_restnet_line.at(layer).end(); rn2++) {
+                // printf("test_crossing_Line\n");
+                adj_list.push_back(test_crossing_Line(l_restnet_line.at(layer), *rn2));
+                for (auto it=adj_list.back().begin(); it!=adj_list.back().end(); it++) {
+                    if(*it == *rn2) {
+                        adj_list.back().erase(it);
+                        break;
+                    }
                 }
-                else {
-                    if (layer_detour->second.detour_dist <= best_detour.detour_dist)
-                        best_detour = layer_detour->second;
+            }
+            printf("CNF:\n");
+            for (int i=1; i<adj_list.size(); i++) {
+                int nid, temp_nid;
+                if (i%2==0)
+                    nid = ID_restnet.at(i/2);
+                else
+                    nid = ID_restnet.at((i+1)/2);
+                temp_nid = layer*cardinal_num+i;
+                for (auto adj_l=adj_list.at(i).begin(); adj_l!=adj_list.at(i).end(); adj_l++) {
+                    stringstream SS1, SS2;    string S,s1,s2;
+                    auto L=*adj_l;
+                    SS2<<-1*adj_l->temp_nid;   SS2>>s2;
+                    SS1<<-1*temp_nid;   SS1>>s1;
+                    S = s1+" "+s2+" 0\n";
+                    cout<<s1<<" | "<<s2<<" | "<<S;
+                    CNF.push_back(S);
                 }
             }
+            printf("\nCNF end\n\n");
+            for (int i=1; i<adj_list.size(); i++) {
+                if (i%2==0)
+                    printf("net %d(DDR) crossing: ",ID_restnet.at(i/2));
+                else
+                    printf("net %d(CPU) crossing: ",ID_restnet.at((i+1)/2));
+                for (auto adj_l=adj_list.at(i).begin(); adj_l!=adj_list.at(i).end(); adj_l++) {
+                    printf("%d(%d)(tid:%d) ",adj_l->net,adj_l->DDR_detour,adj_l->temp_nid);
+                }
+                printf("\n");
+            }
+            layer++;
+        }
+        string out = "CNF.out";
+        map<int,Detour_info> ans;
+        output_CNF(CNF,restnet_line);
+        if (Satisfiable(out)) {
+            ans = Load_MAXSAT_Output (coarse_detour_info.at(idx_g),ID_restnet);
+        }
+        for (auto n_bd=ans.begin(); n_bd!=ans.end(); n_bd++) {
+            Pin* cpu_p = get_cpupin(net_list.at(n_bd->first));
+            Pin* ddr_p = get_ddrpin(net_list.at(n_bd->first));
+            Detour_info best_detour = n_bd->second;
             best_detour.print();
             CPU_LCS_group.at(idx_g).at(best_detour.layer).push_back({best_detour.rest_net,1000});
             DDR_LCS_group.at(idx_g).at(best_detour.layer).push_back({best_detour.rest_net,1000});
             cpu_p->layer = best_detour.layer;
-            ddr_p->layer = best_detour.layer;
+            ddr_p->layer = best_detour.layer;   
+            // printf("net %d cpu p l=%d ddr p l=%d\n ",n_bd->first,cpu_p->layer,ddr_p->layer);
             if (best_detour.CPU_side) {
                 cpu_p->ER_coarse_cell = best_detour.path_coor;
                 cpu_p->esti_escape_routing_length = best_detour.detour_dist;
@@ -3421,6 +3652,7 @@ void GR::set_line(vector<vector<vector<pair<int,int>>>>& CPU_LCS_group, const ve
                 }
                 else 
                     p0=pin_list.at(n.net_pinID.at(1));
+                Pin* cpu_p = get_cpupin(n);
                 // ep0 = {p0.real_pos.X , p0.real_pos.Y};
                 // ep1 = {p1.real_pos.X , p1.real_pos.Y};
                 // Line line(n.net_ID,ep0,ep1);
@@ -3428,17 +3660,22 @@ void GR::set_line(vector<vector<vector<pair<int,int>>>>& CPU_LCS_group, const ve
                 {
                     if (p0.escape_dir==TOP) {
                         LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).top+1000};
+                        cpu_p->fanout_pos = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).top};
                     }
                     else if (p0.escape_dir==BOT){
                         LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).bot-1000};
+                        cpu_p->fanout_pos = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).bot};
                     }
                     else if (p0.escape_dir==RIGHT){
                         LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {comp_boundary.at(p0.comp_name).right+1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                        cpu_p->fanout_pos = {comp_boundary.at(p0.comp_name).right , p0.real_pos.Y+nid_shift->second*pitch};
                     }
                     else {
                         LCS_group_net_line_align_bdy.back().back()[n.net_ID].ep1 = {comp_boundary.at(p0.comp_name).left-1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                        cpu_p->fanout_pos = {comp_boundary.at(p0.comp_name).left , p0.real_pos.Y+nid_shift->second*pitch};
                     }
                 }
+                
                 LCS_group_net_line_align_bdy.back().back()[n.net_ID].net = n.net_ID;
             }
         }
@@ -3457,6 +3694,7 @@ void GR::set_line(vector<vector<vector<pair<int,int>>>>& CPU_LCS_group, const ve
                 }
                 else 
                     p0=pin_list.at(n.net_pinID.at(1));
+                Pin* ddr_p = get_ddrpin(n);
                 // ep0 = {p0.real_pos.X , p0.real_pos.Y};
                 // ep1 = {p1.real_pos.X , p1.real_pos.Y};
                 // Line line(n.net_ID,ep0,ep1);
@@ -3464,15 +3702,19 @@ void GR::set_line(vector<vector<vector<pair<int,int>>>>& CPU_LCS_group, const ve
                 {
                     if (p0.escape_dir==TOP) {
                         LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).top+1000};
+                        ddr_p->fanout_pos = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).top};
                     }
                     else if (p0.escape_dir==BOT){
                         LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).bot-1000};
+                        ddr_p->fanout_pos = {p0.real_pos.X+nid_shift->second*pitch , comp_boundary.at(p0.comp_name).bot};
                     }
                     else if (p0.escape_dir==RIGHT){
                         LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {comp_boundary.at(p0.comp_name).right+1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                        ddr_p->fanout_pos = {comp_boundary.at(p0.comp_name).right , p0.real_pos.Y+nid_shift->second*pitch};
                     }
                     else {
                         LCS_group_net_line_align_bdy.at(idx_g).at(idx_sub_g)[n.net_ID].ep2 = {comp_boundary.at(p0.comp_name).left-1000 , p0.real_pos.Y+nid_shift->second*pitch};
+                        ddr_p->fanout_pos = {comp_boundary.at(p0.comp_name).left , p0.real_pos.Y+nid_shift->second*pitch};
                     }
                 }
 
@@ -3507,33 +3749,6 @@ Pin* GR::get_ddrpin(const Net& n) {
         return p;
 }
 
-// void GR::update_Cell(std::vector<std::vector<std::vector<Cell>>>& map, int subg_idx) {
-//     int layer(0);
-//     for (auto it1=map.begin(); it1!=map.end(); it1++) {
-//         int x(0);
-//         for (auto it2=it1->begin(); it2!=it1->end(); it2++) {
-//             int y(0);
-//             for (auto it3=it2->begin(); it3!=it2->end(); it3++) {
-//                 // printf("z x y (%d,%d,%d)\n",layer,x,y);
-//                 // if (layer==1 && x==3 && y==9)
-//                 //     printf("z x y (%d,%d,%d)\n",layer,x,y);
-//                 // if (layer==1 && x==2 && y==8)
-//                 //     printf("z x y (%d,%d,%d)\n",layer,x,y);
-//                 for (int i=0; i<8; i++) {
-//                     auto temp0 = it3->edge_r.at(i);
-//                     it3->edge_r.at(i) -= it3->edge_temp_demand.at(i);
-//                     it3->edge_demand.at(i) += it3->edge_temp_demand.at(i);
-//                     auto temp1 = it3->edge_temp_demand.at(i);
-//                     auto temp2 = it3->edge_r.at(i);
-//                     it3->edge_temp_demand.at(i) = 0;
-//                 }
-//                 y++;
-//             }
-//             x++;
-//         }
-//         layer++;
-//     }
-// }
 void GR::update_Cell(std::vector<std::vector<std::vector<Cell>>>& map) {
     int layer(0);
     for (auto it1=map.begin(); it1!=map.end(); it1++) {
@@ -3973,5 +4188,98 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
         for (auto coor=_GR_unit.at(CCW_idx).CCW_path.begin(); coor!=_GR_unit.at(CCW_idx).CCW_path.end();coor++) {
             GR_map->at(coor->z).at(coor->x).at(coor->y).forbidden_region=-1;
         }
+    }
+}
+
+void GR::AR_RSRC_allocate(string filename) {
+    printf("AR_RSRC_allocate start\n");
+    int layer(0);
+    int layer_cardinal_num = (coarse_x_size*(coarse_y_size+1)+((coarse_x_size+1)*coarse_y_size));
+    int edge_cardinal_num = (coarse_x_size*(coarse_y_size+1));
+    edge_table.resize(can_use_layer_num);
+    vector<map<int,vector<Segment>>> seg_list(can_use_layer_num);
+    for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
+        for(auto cluster=l->begin(); cluster!=l->end(); cluster++) {
+            printf("cluster:%d   ", cluster->cluster_relative_idx);
+            int seg_idx(0);
+            auto s = cluster->path.begin();
+            auto temp = cluster->path.begin(); temp++;
+            int max_slack(0);
+            for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
+                auto n = &net_list.at(*nid);
+                if (n->slack_wirelength > max_slack)    
+                    max_slack = n->slack_wirelength;
+            }
+            printf("max slack:%d\n", max_slack);
+            for (auto t=temp; t!=cluster->path.end(); t++) {
+                // printf("seg_idx:%d\n",seg_idx);
+                string name = "C"+to_string(cluster->cluster_relative_idx)+"I"+to_string(seg_idx);
+                Segment seg(layer, seg_idx, cluster->net.size(), cluster->cluster_relative_idx, name);
+                seg.demand = max_slack;
+                
+                seg_list.at(layer)[cluster->cluster_relative_idx].push_back(seg);
+                if (s->x==t->x) {//horizontal seg
+                    int y=s->y>t->y?s->y:t->y;
+                    int edge_idx = layer*layer_cardinal_num + y*coarse_x_size + s->x;
+                    
+                    edge_table.at(layer)[edge_idx].index=edge_idx;
+                    edge_table.at(layer)[edge_idx].resource=coarse_GRcell.at(layer).at(s->x).at(y).edge_r[2];
+                    edge_table.at(layer)[edge_idx].segment.push_back(seg);
+                }
+                else if (s->y==t->y) {//verticle seg
+                    int x=s->x>t->x?s->x:t->x;
+                    int edge_idx = layer*layer_cardinal_num + edge_cardinal_num + s->y*(coarse_x_size+1) + x;
+                    
+                    edge_table.at(layer)[edge_idx].index=edge_idx;
+                    edge_table.at(layer)[edge_idx].resource=coarse_GRcell.at(layer).at(x).at(s->y).edge_r[2];
+                    edge_table.at(layer)[edge_idx].segment.push_back(seg);
+                }
+                else {//four direction, all dir involve in 4 edge
+                    int minx, miny, maxx, maxy;
+                    if (s->x > t->x && s->y > t->y) {//Left Bottom
+                        minx=t->x, miny=t->y, maxx=s->x, maxy=s->y;
+                    }
+                    else if (s->x < t->x && s->y < t->y) {//Right Top
+                        minx=s->x, miny=s->y, maxx=t->x, maxy=t->y;
+                    }
+                    else if (s->x > t->x && s->y < t->y) {//LEFT TOP
+                        minx=t->x, miny=s->y, maxx=s->x, maxy=t->y;
+                    }
+                    else if (s->x < t->x && s->y > t->y) {//Right Bottom
+                        minx=s->x, miny=t->y, maxx=t->x, maxy=s->y;
+
+                    }
+                    int edge_idx1 = layer*layer_cardinal_num + edge_cardinal_num + maxy*(coarse_x_size+1) + maxx;
+                    int edge_idx2 = layer*layer_cardinal_num + maxy*coarse_x_size + maxx;
+                    int edge_idx3 = layer*layer_cardinal_num + edge_cardinal_num + miny*(coarse_x_size+1) + maxx;
+                    int edge_idx4 = layer*layer_cardinal_num + maxy*coarse_x_size + minx;
+
+                    edge_table.at(layer)[edge_idx1].index=edge_idx1;
+                    edge_table.at(layer)[edge_idx1].resource=coarse_GRcell.at(layer).at(maxx).at(maxy).edge_r[3];
+                    edge_table.at(layer)[edge_idx1].segment.push_back(seg);
+
+                    edge_table.at(layer)[edge_idx2].index=edge_idx2;
+                    edge_table.at(layer)[edge_idx2].resource=coarse_GRcell.at(layer).at(maxx).at(maxy).edge_r[2];
+                    edge_table.at(layer)[edge_idx2].segment.push_back(seg);
+                    
+                    edge_table.at(layer)[edge_idx3].index=edge_idx3;
+                    edge_table.at(layer)[edge_idx3].resource=coarse_GRcell.at(layer).at(minx).at(miny).edge_r[1];
+                    edge_table.at(layer)[edge_idx3].segment.push_back(seg);
+                    
+                    edge_table.at(layer)[edge_idx4].index=edge_idx4;
+                    edge_table.at(layer)[edge_idx4].resource=coarse_GRcell.at(layer).at(minx).at(miny).edge_r[0];
+                    edge_table.at(layer)[edge_idx4].segment.push_back(seg);
+                }
+                seg_idx++;
+            }
+        }
+        layer++;
+    }
+    printf("output .lp file\n");
+    layer = 0;
+    for (auto l=edge_table.begin(); l!=edge_table.end(); l++) {
+        string output_name = "./input3/4/4";
+        output_lp(layer,output_name,*l, GR_unit.at(layer), seg_list.at(layer), net_list);
+        layer++;
     }
 }

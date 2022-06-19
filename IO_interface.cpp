@@ -1,7 +1,15 @@
 #include "IO_interface.h"
+#include "Func.h"
 #define X first
 #define Y second
+#define PI 3.14159265
 using namespace std;
+struct Const {
+    public:
+    double C0;
+    double C1;
+    double bound;
+};
 
 void output_gds(std::string filename, GR* router) {
     int lcu_idx(0);
@@ -21,7 +29,7 @@ void output_gds(std::string filename, GR* router) {
         printf("cell size:%d\n", coarse_cell_size);
         output<<"gds2{600\n"
             <<"m=2018-09-14 14:26:15 a=2018-09-14 14:26:15\n"
-            <<"lib 'asap7sc7p5t_24_SL' 0.25 2.5e-10\n"
+            <<"lib 'asap7sc7p5t_24_SL' 0.0025 2.5e-10\n"
             <<"cell{c=2018-09-14 14:26:15 m=2018-09-14 14:26:15 'AND2x2_ASAP7_75t_SL'\n";
             //output GR grid line
         for (size_t i = 0; i < router->coarse_GRcell.at(0).size()+1; i++) {
@@ -34,16 +42,16 @@ void output_gds(std::string filename, GR* router) {
                     <<" "<<left+i*coarse_cell_size<<" "<<top<<" "<<left+i*coarse_cell_size<<" "<<top<<")}\n";
             
         }
-        for (size_t i = 0; i < router->fine_GRcell.at(0).size()+1; i++) {
-            for (size_t j = 0; j < router->fine_GRcell.at(0).at(0).size()+1; j++)
-            {
-                output<<"b{999"<<" dt1 xy("<<left<<" "<<bot+j*fine_cell_size<<" "<<left<<" "<<bot+j*fine_cell_size
-                    <<" "<<right<<" "<<bot+j*fine_cell_size<<" "<<right<<" "<<bot+j*fine_cell_size<<")}\n";
-            }
-            output<<"b{999"<<" dt1 xy("<<left+i*fine_cell_size<<" "<<bot<<" "<<left+i*fine_cell_size<<" "<<bot
-                    <<" "<<left+i*fine_cell_size<<" "<<top<<" "<<left+i*fine_cell_size<<" "<<top<<")}\n";
+        // for (size_t i = 0; i < router->fine_GRcell.at(0).size()+1; i++) {
+        //     for (size_t j = 0; j < router->fine_GRcell.at(0).at(0).size()+1; j++)
+        //     {
+        //         output<<"b{999"<<" dt1 xy("<<left<<" "<<bot+j*fine_cell_size<<" "<<left<<" "<<bot+j*fine_cell_size
+        //             <<" "<<right<<" "<<bot+j*fine_cell_size<<" "<<right<<" "<<bot+j*fine_cell_size<<")}\n";
+        //     }
+        //     output<<"b{999"<<" dt1 xy("<<left+i*fine_cell_size<<" "<<bot<<" "<<left+i*fine_cell_size<<" "<<bot
+        //             <<" "<<left+i*fine_cell_size<<" "<<top<<" "<<left+i*fine_cell_size<<" "<<top<<")}\n";
             
-        }
+        // }
         int idx(1);
         
         for (auto n=router->net_list.begin(); n!=router->net_list.end(); n++) {
@@ -188,7 +196,7 @@ void output_gds(std::string filename, GR* router) {
                     else 
                         p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
                     for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
-                        output<<"b{"<<*nid<<" dt0 xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                        output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
                                                      <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
                                                      <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
                                                      <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
@@ -261,7 +269,7 @@ void output_gds(std::string filename, GR* router) {
                     else 
                         p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
                     for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
-                        output<<"b{"<<*nid<<" dt0 xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                        output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
                                                      <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
                                                      <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
                                                      <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
@@ -293,6 +301,14 @@ void output_gds(std::string filename, GR* router) {
                 }
                 idx++;
             }
+        }
+        idx=700;
+        for (auto l=router->l_restnet_line.begin(); l!=router->l_restnet_line.end(); l++) {
+            for (auto line=l->begin(); line!=l->end(); line++) {
+                output<<"p{"<<idx<<" dt"<< line->net <<" pt1 w200.00 xy("<<line->ep1.X<<" "<<line->ep1.Y
+                            <<" "<<line->ep2.X<<" "<<line->ep2.Y<<")}\n"; 
+            }
+            idx++;
         }
         idx = 600;
         // for (auto mg=router->merged_group_net.begin(); mg!=router->merged_group_net.end(); mg++) {
@@ -416,5 +432,368 @@ void output_gds(std::string filename, GR* router) {
     
 }
 
+bool Satisfiable(string &sat_out){
+    ifstream input;
+    input.open(sat_out, ios::in);
+    string strLine = "";
+    while (!input.eof())
+    {
+        std::getline(input, strLine);
+        string str = strLine;
+        if (str.find("OPTIMUM FOUND") != std::string::npos)
+        {
+            input.close();
+            return true;
+        }
+        if (str.find("UNSATISFIABLE") != std::string::npos)
+        {
+            input.close();
+            return false;
+        }
+        if (str.find("SATISFIABLE") != std::string::npos)
+        {
+            input.close();
+            return true;
+        }
 
 
+    }
+    input.close();
+    return false;
+}
+
+void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& restnet_line ){
+    ofstream CNF("CNF.sat");
+    int total_layer =  restnet_line.size();
+    int total_net(0);
+    int cardinal_num(0);
+    int hard_c(s_vec.size()), soft_c;
+    int total_soft_weight(0);
+    int max_dd(0);
+    if (total_layer>0)
+        total_net = restnet_line.at(0).size();
+    for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
+        for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
+            total_soft_weight += n_2l->second.first.detour_dist;
+            total_soft_weight += n_2l->second.second.detour_dist;
+        }
+    }
+    cardinal_num = total_layer*total_net*2;
+    soft_c       = total_layer*total_net*2;
+    hard_c += ((2*total_layer)*(2*total_layer-1)/2)*total_net;
+    CNF <<  "p wcnf " << cardinal_num << ' ' << hard_c+soft_c << ' ' << total_soft_weight + 1  << endl;
+    int layer(0);
+    for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
+        for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
+            stringstream SS;
+            string s1,s2, S, S1, S2, S3, S4;
+            s1 = to_string(-1*n_2l->second.first.temp_nid);
+            s2 = to_string(-1*n_2l->second.second.temp_nid);
+            S = s1+" "+s2+" 0\n";
+            cout<<S;
+            s_vec.push_back(S);
+            if (n_2l->second.first.detour_dist > max_dd)
+                max_dd = n_2l->second.first.detour_dist;
+            if (n_2l->second.second.detour_dist > max_dd)
+                max_dd = n_2l->second.second.detour_dist;
+            for (int next_l=layer+1; next_l<total_layer; next_l++) {
+                string ns1, ns2;
+                ns1 = to_string(-1*restnet_line.at(next_l).at(n_2l->first).first.temp_nid);
+                ns2 = to_string(-1*restnet_line.at(next_l).at(n_2l->first).second.temp_nid);
+                S1 = s1+" "+ns1+" 0\n";
+                S2 = s1+" "+ns2+" 0\n";
+                S3 = s2+" "+ns1+" 0\n";
+                S4 = s2+" "+ns2+" 0\n";
+                cout<<S1<<S2<<S3<<S4;
+                s_vec.push_back(S1);
+                s_vec.push_back(S2);
+                s_vec.push_back(S3);
+                s_vec.push_back(S4);
+            }
+        }
+        layer++;
+    }
+    cout<<"hard c = "<<s_vec.size()<<" esti hard c = "<<hard_c<<endl;
+    for (auto clause=s_vec.begin(); clause!=s_vec.end(); clause++) {
+        CNF<<total_soft_weight+1<<" "<<*clause;
+    }
+    
+    for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
+        for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
+            CNF<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
+            CNF<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
+            cout<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
+            cout<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
+        }
+    }
+    CNF.close();
+    string command = "./uwrmaxsat CNF.sat -m > CNF.out";
+    cout<<"MAX SAT commend: "<<command<<endl;
+    system(command.c_str());
+    cout << "uwrmaxsat finish" << endl;
+    // if (Satisfiable("CNF.out") {
+
+    // }
+}
+
+map<int,Detour_info> Load_MAXSAT_Output(const map<int,vector<pair<Detour_info,Detour_info>>>& coarse_detour_info, const map<int,int>& ID_restnet){
+    //ifstream input("sat_route.out");
+    map<int,Detour_info> ans;
+    ifstream input("CNF.out");
+    int net_num=coarse_detour_info.size();
+    int total_layer(0);
+    int cardinal_num(net_num*2);
+    if (net_num==0) {
+        printf("Load_MAXSAT_Output WRONG!!!!!!!\n");
+        return ans;
+    }
+    total_layer = coarse_detour_info.begin()->second.size();
+    int SAT_BOOL_VAR_ID = net_num*total_layer*2;
+    if (!input.is_open())
+    {
+        cout << "Unable to open the file" << endl;
+        exit(1);
+    }
+
+    vector<int> solution_value(SAT_BOOL_VAR_ID+1, -1);
+    vector<int> true_val;
+    while (!input.eof())
+    {
+        string strLine;
+        std::getline(input, strLine);
+        //printf("%s \n", strLine.c_str());
+        if (strLine.size() > 0)
+        {
+            if (strLine.at(0) == 'v')
+            {
+                // Solution
+                vector<string> solution;
+                string sep = " ";
+                //printf("SplitString\n");
+                // cout<<strLine<<endl;
+                SplitString(strLine, sep ,solution);
+                // cout<<"solution.size="<<solution.size()<<endl;
+                //printf("SplitString: %s\n",solution.at(0).c_str());
+                for (int i = 1; i < solution.size(); i++)
+                {
+                    // printf("i=%d\n",i);
+
+                    if (i >= static_cast<int>(solution_value.size())) {
+                         break;
+                    }
+                    //printf("(%d)\n",i);
+                    // cout<<solution.at(i)<<endl;
+                    if (solution.at(i).size() > 0)
+                    {
+                        if (solution.at(i).at(0) == '-')
+                        {
+                            //printf("%s\t-> id(%d) = 0\n",solution.at(i).c_str(),i);
+                            solution_value.at(i) = 0;
+                        }
+                        else
+                        {
+                            //printf("%s\t-> id(%d) = 1\n", solution.at(i).c_str(), i);
+                            solution_value.at(i) = 1;
+                            true_val.push_back(i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    input.close();
+
+    for (auto var=true_val.begin(); var!=true_val.end(); var++) {
+        int layer = (*var-1)/cardinal_num;
+        int nid = *var%cardinal_num;
+        bool DDR_detour(false);
+        if (nid%2==0)
+            DDR_detour = true;
+        nid = (nid+1)/2;
+        if (nid==0)
+            nid = net_num;
+        nid = ID_restnet.at(nid);
+
+        if (!DDR_detour)
+            ans[nid] = coarse_detour_info.at(nid).at(layer).first;
+        else 
+            ans[nid] = coarse_detour_info.at(nid).at(layer).second;
+        printf("var:%d = layer:%d net:%d (%d)\n",*var, layer, nid, DDR_detour);
+    }
+    return ans;
+}
+
+void output_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list){
+    printf("output_lp\n");
+    int pitch = WIRE_WIDTH + MIN_SPACING;
+    double st = MIN_SPACING*tan(22.5*PI / 180.0);
+
+    string base_file_name = output_name + "_" + to_string(layer);
+    output_name = base_file_name + ".lp";
+    string comman_file_name = base_file_name + ".cmd";
+    //remove .lp file and .sol file
+    string rm_command = "rm -rf "+output_name;
+    system(rm_command.c_str());
+    rm_command = "rm -rf "+base_file_name+".sol";
+    system(rm_command.c_str());
+
+    ofstream output(output_name);
+    ofstream command(comman_file_name);
+    output<<"Minimize\n";
+    output<<"obj:\n";
+    string obj = " ";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++)
+            obj += seg->name + " + ";
+    }
+    {
+        size_t plus_pos = obj.rfind("+");
+        obj.erase(plus_pos,2);
+        obj += "\n";
+    }
+
+    output<<obj;
+    vector<string> ieq;
+    vector<string> bound;
+    vector<string> pwl;
+    vector<Const> const_table;
+    int max_n(0);
+    for (auto c=GR_unit.begin(); c!=GR_unit.end(); c++) {
+        if (c->net.size() > max_n)
+            max_n = c->net.size();
+    }
+    cout<<"max n = "<<max_n<<endl;
+    printf("const:\nst:%f, MIN_SPACING:%d, WIRE_WIDTH:%d, l_dia:%d, MSL:%d\n", st, MIN_SPACING, WIRE_WIDTH, l_dia, MSL);
+    const_table.resize(max_n+1);
+    for (int n=1; n<=max_n; n++) {
+        const_table.at(n).C0 = 6*(n-1)*st+2*MSL+4*l_dia - 2*(n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2));
+        // printf("6*(n-1)*st=%f + 2*MSL:%d + 4*l_dia:%d + (n*(MIN_SPACING+WIRE_WIDTH):%d + l_dia/sqrt(2):%f + (n-1)*st/sqrt(2):%f\n",
+        //         6*(n-1)*st,     2*MSL,     4*l_dia,     n*(MIN_SPACING+WIRE_WIDTH),      l_dia/sqrt(2),     (n-1)*st/sqrt(2));
+        const_table.at(n).C1 = 2;
+        const_table.at(n).bound = n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2);
+        printf("#n:%d  C0:%f  C1:%f  bound:%f\n",n, const_table.at(n).C0, const_table.at(n).C1, const_table.at(n).bound);
+    }
+    // inequation: x1 + x2 <= 3
+    output<<"Subject To\n";
+    for (auto edge=edge_table.begin(); edge!=edge_table.end(); edge++) {
+        output<<"  c"<<edge->first<<": ";
+        string temp_s = "";
+        for (auto seg=edge->second.segment.begin(); seg!=edge->second.segment.end(); seg++) {
+            string temp_s2 =  seg->name + " + ";
+            // string temp_s2 =  "C" + to_string(seg->cluster_idx) + "I" + to_string(seg->index) + " + ";
+            temp_s += temp_s2;
+            // output<<"C"<<to_string(seg->cluster_idx)<<"I"<<to_string(seg->index);
+        }
+        size_t plus_pos = temp_s.rfind("+");
+        temp_s.erase(plus_pos,2);
+        temp_s += "<= " + to_string(edge->second.resource*pitch) + "\n";
+        cout<<"edge: "<<edge->first<<" "<<temp_s;
+        output<<temp_s;
+        ieq.push_back(temp_s);
+    }
+
+    // wl constraint
+    int idx(0);
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        string slack_constraint;
+            string s= "  r" + to_string(idx) + ": ";
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            s += "S_" + seg->name + " + ";
+        }
+        size_t plus_pos = s.rfind("+");
+        s.erase(plus_pos,2);
+        s += ">= " + to_string(c->second.begin()->demand) + "\n";
+        output<<s;
+        idx++;
+    }
+    // Bound
+    output<<"Bounds\n";
+    cout<<"Bounds\n";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            int n=seg->net_num;
+            // cout<<"n="<<n<<endl;
+            string s = "  " + seg->name + " >= " + to_string(const_table.at(n).bound) + "\n";
+            output<<s;
+            cout<<s;
+        }        
+    }
+
+
+    // Semi-continuous
+    output<<"Semi-continuous\n";
+    cout<<"Semi-continuous\n";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            output<<seg->name<<" ";
+            cout<<seg->name<<" ";
+        }
+    }
+    output<<"\n";
+    cout<<"\n";
+
+
+    // piecewise linear function
+    output<<"PWL\n";
+    cout<<"PWL\n";
+    idx = 0;
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            int n=seg->net_num;
+            double ini_val = const_table.at(n).C0 + const_table.at(n).C1*const_table.at(n).bound;
+            string s_iv = to_string(ini_val);
+            s_iv.erase(s_iv.find("."), s_iv.size()-s_iv.find(".")+2);
+            string slope = to_string(const_table.at(n).C1);
+            string p = "  p" + to_string(idx) + ": S_" + seg->name + " = " +seg->name + " 0 (0, 0) (" + to_string(const_table.at(n).bound) + ", " + s_iv + ") "+ slope + "\n";
+            pwl.push_back(p);
+            output<<p;
+            cout<<p;
+            idx++;
+        }
+    }
+    output<<"END\n";
+    cout<<"END\n";
+    output.close();
+    command << "read " << output_name << "\n";
+    command << "opt\n";
+    command << "write " << base_file_name<<"_"<<to_string(layer)<<".sol\n";
+    command << "y\n";
+    command.close();
+    string command_line = "./cplex < " + comman_file_name;
+    printf("command: %s\n",command_line.c_str());
+    system(command_line.c_str());
+}
+
+void Load_LP_Output(std::string sol_file_name) {
+    ifstream input(sol_file_name);
+    if (!input) {
+        printf("%s not found, Infeasible!!!\n",sol_file_name);
+        exit(1);
+    }
+    string S;
+    while (!input.eof()){
+        getline(input, S);
+        if (S.find("<variables>")!=std::string::npos) {
+            stringstream SS;
+            string sc, si;
+            while (S.find("</variables>")!=std::string::npos) {
+                getline(input, S);
+                string sep = "\"";
+                vector<string> s_vec;
+                SplitString(S,sep,s_vec);
+                string name = s_vec.at(1);
+                string s_val = s_vec.at(5);
+                size_t c_pos = name.find("C");
+                size_t i_pos = name.find("I");
+                int c,i, val;
+                sc.assign(name,c_pos+1,i_pos-c_pos-1);
+                si.assign(name,i_pos+1,name.size()-i_pos-1);
+                cout<<"c:"<<sc<<"I:"<<si<<endl;
+                SS<<sc; SS>>c;  SS.clear();
+                SS<<si; SS>>i;  SS.clear();
+                SS<<s_val; SS>>val;  SS.clear();
+            }
+        }
+    }
+
+}

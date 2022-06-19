@@ -23,7 +23,7 @@ struct Coor
     int x;
     int y;
     int z;
-    Coor(){}
+    Coor():x(0), y(0), z(0){}
     Coor(int _z, int _x, int _y):x(_x),y(_y),z(_z){}
     void setup(int _z, int _x, int _y) {
         x=_x;
@@ -127,6 +127,7 @@ class Pin{
     bool ignore;
     int escape_dir;
     std::pair<int,int> real_pos;
+    std::pair<int,int> fanout_pos;
     std::pair<int,int> coarse_coor;
     std::pair<int,int> fine_coor;
     std::string pin_name;
@@ -156,10 +157,12 @@ class Net{
     bool is2pin_net;
     bool ignore;
     double demand_val;
-    int routed_wirelength;
+    int ER_routed_wirelength;//ER
+    int AR_routed_wirelength;//ER
+    int slack_wirelength;
     std::string net_name;
     std::vector<int> net_pinID;
-    Net():net_ID(-1),gn_ID(-1),cluster_relative_idx(-1),sub_g_ID(-1),merged_group_ID(-1),isdiff(false),ignore(false), is2pin_net(true),routed_wirelength(0){};
+    Net():net_ID(-1),gn_ID(-1),cluster_relative_idx(-1),sub_g_ID(-1),merged_group_ID(-1),isdiff(false),ignore(false), is2pin_net(true),ER_routed_wirelength(0),AR_routed_wirelength(0), slack_wirelength(0){};
     Net(int, std::string);
     std::string get_netname(){return net_name;};
     std::vector<std::tuple<int,int,int>> coarse_GR_path;
@@ -169,11 +172,11 @@ class Net{
 class Path_node {
     public:
     int bounded_length;
-    double routed_wirelength;
+    double ER_routed_wirelength;
     double esti_routing_length;
     double cost;
     std::vector<Coor> path;
-    Path_node():cost(1e8),esti_routing_length(0),routed_wirelength(0),bounded_length(0){}
+    Path_node():cost(1e8),esti_routing_length(0),ER_routed_wirelength(0),bounded_length(0){}
     // int next_coor;
 };
 
@@ -213,6 +216,7 @@ class Cluster {
     public:
     std::vector<int> net;
     int cluster_relative_idx;
+    int max_slack;
     double demand_val;
     Coor start, end;
     std::vector<Coor> path;
@@ -255,18 +259,30 @@ class Obs {
 class Line {
     public:
     int net;
+    int temp_nid;
+    int detour_dist;
+    bool DDR_detour;
     std::pair<int,int> ep1,ep2;
     Line(){}
-    Line(int n, std::pair<int,int> ep1, std::pair<int,int>ep2){
+    Line(int n, std::pair<int,int> ep1, std::pair<int,int>ep2):DDR_detour(false), temp_nid(-1){
         net = n;
         this->ep1 = ep1;
         this->ep2 = ep2;
     }
+    Line(int n, bool b,int dd, std::pair<int,int> ep1, std::pair<int,int>ep2) {
+        net = n;
+        DDR_detour = b;
+        detour_dist = dd;
+        this->ep1 = ep1;
+        this->ep2 = ep2;
+    }
     void setup(int n, std::pair<int,int> ep1, std::pair<int,int>ep2) {
-        
         net = n;
         this->ep1 = ep1;
         this->ep2 = ep2;
+    }
+    bool operator== (const Line &line) const {
+        return (ep1==line.ep1 && ep2==line.ep2 && net==line.net && temp_nid==line.temp_nid&& DDR_detour==line.DDR_detour);
     }
 
 };
@@ -289,25 +305,39 @@ class Detour_info {
     }
 };
 
+class Segment {
+    public:
+    int layer;
+    int index;
+    int cluster_idx;
+    int net_num;
+    int slack;
+    double demand;
+    std::string name;
+    Segment():layer(-1),index(-1),cluster_idx(-1),net_num(-1), slack(0), demand(0){}
+    Segment(int l, int idx, int n_n, int cidx, std::string _name):layer(l), index(idx), cluster_idx(cidx), net_num(n_n), slack(0), name (_name) {}
+};
+
 class Edge {
     public:
-    int length;
-    double cost;
-    double capacity;
+    int index;
+    int layer;
     double resource;
-    double demand;
-    double ini_demand;
+    std::vector<Segment> segment;
     // std::vector<bool> dir;//0 TOP 2 RIGHT 4 BOT 6 LEFT
-    std::vector<int> net;
     Edge(){
-        length=0;
-        cost=0;
-        capacity=0;
         resource=0;
-        demand=0;
-        ini_demand=0;
+    }
+    bool operator< (const Edge &edge) const {
+        if (layer < edge.layer)
+            return true;
+        else if (layer == edge.layer && index < edge.index)
+            return true;
+        else 
+            return false;
     }
 };
+
 struct compare {
     bool operator()(const Path_node & a, const Path_node & b)
     {
@@ -317,8 +347,8 @@ struct compare {
         // } else {
         //     return a.salary>b.salary;
         // }
-        // return (a.routed_wirelength+a.cost) < (b.routed_wirelength+b.cost);
-        return (a.cost+a.esti_routing_length+a.routed_wirelength) > (b.cost+b.esti_routing_length+b.routed_wirelength);
+        // return (a.ER_routed_wirelength+a.cost) < (b.ER_routed_wirelength+b.cost);
+        return (a.cost+a.esti_routing_length+a.ER_routed_wirelength) > (b.cost+b.esti_routing_length+b.ER_routed_wirelength);
     }
 };
 #endif

@@ -13,20 +13,21 @@ void Pin::change_pos(int x, int y){
 }
 
 
-Net::Net(int nID, std::string nName):merged_group_ID(-1),gn_ID(-1),sub_g_ID(-1),isdiff(false),cluster_relative_idx(-1),is2pin_net(true),routed_wirelength(0), ignore(false){
+Net::Net(int nID, std::string nName):merged_group_ID(-1),gn_ID(-1),sub_g_ID(-1),isdiff(false),cluster_relative_idx(-1),is2pin_net(true),ER_routed_wirelength(0), AR_routed_wirelength(0), ignore(false){
     net_ID = nID;
     net_name = nName;
+    slack_wirelength = 0;
 }
 void Net::update_wirelength(vector<Pin>& pin_list) {
-    // printf("update_wirelength nid %d ini rwl: %d\n",net_ID,routed_wirelength);
-    int rwl = routed_wirelength;
+    // printf("update_wirelength nid %d ini rwl: %d\n",net_ID,ER_routed_wirelength);
+    int rwl = ER_routed_wirelength;
     for (auto pid=net_pinID.begin(); pid!=net_pinID.end(); pid++) {
         int _pid = *pid;
         int temp = pin_list.at(*pid).esti_escape_routing_length;
         // printf("update_wirelength pid %d pin ERL: %d\n",*pid,temp);
-        routed_wirelength += pin_list.at(*pid).esti_escape_routing_length;
+        ER_routed_wirelength += pin_list.at(*pid).esti_escape_routing_length;
     }
-    // printf("update_wirelength nid %d rwl: %d\n",net_ID,routed_wirelength);
+    // printf("update_wirelength nid %d rwl: %d\n",net_ID,ER_routed_wirelength);
 }
 
 
@@ -86,10 +87,10 @@ void Cell::update_recourse() {
 void Sub_gn::update_demand_val(const std::vector<Net>& net_list, int mwl) {
     int temp(0);
     for (auto nid=net.begin(); nid!=net.end(); nid++) {
-        if (temp < net_list.at(*nid).routed_wirelength) {
-            temp = net_list.at(*nid).routed_wirelength;
+        if (temp < net_list.at(*nid).ER_routed_wirelength) {
+            temp = net_list.at(*nid).ER_routed_wirelength;
         }
-        lack += mwl-net_list.at(*nid).routed_wirelength;
+        lack += mwl-net_list.at(*nid).ER_routed_wirelength;
     }
     demand_val=net.size();
     max_wl = temp;
@@ -99,18 +100,18 @@ void Group_net::initialize(vector<Net>& net_list) {
     int mwl(max_wl);
     for (auto pos_g=sgn.begin(); pos_g!=sgn.end(); pos_g++) {
         for (auto nid=pos_g->net.begin(); nid!=pos_g->net.end();nid++) {
-            if (net_list.at(*nid).routed_wirelength > max_wl)
-                max_wl = net_list.at(*nid).routed_wirelength;            
+            if (net_list.at(*nid).ER_routed_wirelength > max_wl)
+                max_wl = net_list.at(*nid).ER_routed_wirelength;            
         }
     }
     int total_lack(0);
     for (auto pos_g=sgn.begin(); pos_g!=sgn.end(); pos_g++) {
         pos_g->lack = 0;
         for (auto nid=pos_g->net.begin(); nid!=pos_g->net.end(); nid++) {
-            if (net_list.at(*nid).routed_wirelength > pos_g->max_wl)
-                pos_g->max_wl = net_list.at(*nid).routed_wirelength;
-            total_lack+=max_wl-net_list.at(*nid).routed_wirelength;
-            pos_g->lack+=max_wl-net_list.at(*nid).routed_wirelength;
+            if (net_list.at(*nid).ER_routed_wirelength > pos_g->max_wl)
+                pos_g->max_wl = net_list.at(*nid).ER_routed_wirelength;
+            total_lack+=max_wl-net_list.at(*nid).ER_routed_wirelength;
+            pos_g->lack+=max_wl-net_list.at(*nid).ER_routed_wirelength;
         }
     }
 }
