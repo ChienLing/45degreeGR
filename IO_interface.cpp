@@ -8,6 +8,7 @@ struct Const {
     public:
     double C0;
     double C1;
+    double C2;
     double bound;
 };
 
@@ -189,6 +190,7 @@ void output_gds(std::string filename, GR* router) {
                         }
                     
                 }
+                // cout<<"non_LCS_net size: "<<non_LCS_net.size()<<"\n";
                 for (auto nid=non_LCS_net.begin(); nid!=non_LCS_net.end(); nid++) {
                     Pin* p;
                     if (router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0)).CPU_side)
@@ -204,6 +206,14 @@ void output_gds(std::string filename, GR* router) {
                                                      <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
                                                      <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
                                                      <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
+                        // cout<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                        //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
+                        //                              <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                        //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                        //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                        //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                        //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                        //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
                     }
                 }
                 idx++;
@@ -328,7 +338,7 @@ void output_gds(std::string filename, GR* router) {
         //     }
         // }
         int layer_num(0);
-        for (auto l=router->GR_unit.begin(); l!=router->GR_unit.end(); l++) {
+        /*for (auto l=router->GR_unit.begin(); l!=router->GR_unit.end(); l++) {
             int c(0);
             // printf("layer:%d\n",layer_num);
             for (auto cluster=l->begin(); cluster!=l->end(); cluster++) {
@@ -359,6 +369,23 @@ void output_gds(std::string filename, GR* router) {
                             <<" "<<p1.X<<" "<<p1.Y<<")}\n"; 
                 }
                 c++;
+            }
+            layer_num++;
+        }*/
+        layer_num=0;
+        for (auto l=router->seg_list.begin(); l!=router->seg_list.end(); l++) {
+            for (auto c=l->begin(); c!=l->end(); c++) {
+                for (auto s=c->second.begin(); s!=c->second.end(); s++) {
+                    int pitch = MIN_SPACING+WIRE_WIDTH; 
+                    pair<int,int> p1 = {(double)(s->end1.x+0.5)*coarse_x_length+router->total_boundary.left,(double)(s->end1.y+0.5)*coarse_y_length+router->total_boundary.bot};
+                    pair<int,int> p2 = {(double)(s->end2.x+0.5)*coarse_x_length+router->total_boundary.left,(double)(s->end2.y+0.5)*coarse_y_length+router->total_boundary.bot};
+                    pair<int,int> p3 = {(p1.X+p2.X)/2,(p1.Y+p2.Y)/2};
+                    
+                    output<<"p{"<<idx+layer_num<<" dt"<<s->cluster_idx<<" pt1 w800.00 xy("<<p1.X<<" "<<p1.Y
+                            <<" "<<p2.X<<" "<<p2.Y<<")}\n";  
+                    output<<"t{"<<idx+layer_num<<" tt"<<s->cluster_idx<<" mc m0.025 xy("<<p3.X<<" "<<p3.Y<<") '"<<s->demand/pitch<<"'}\n";
+                    // cout<<"demand val: "<<s->demand<<"\n";
+                }
             }
             layer_num++;
         }
@@ -424,6 +451,8 @@ void output_gds(std::string filename, GR* router) {
                 output<<"t{10 tt1 mc m0.025 xy("<<pos_B.X<<" "<<pos_B.Y<<") '"<<bot_r<<"'}\n";
                 output<<"t{10 tt1 mc m0.025 xy("<<pos_T.X<<" "<<pos_T.Y<<") '"<<top_r<<"'}\n";
             }
+            // printf("output GDS (0,6,7) edge_r=%f",router->coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
+            // printf("\n");
         }
         output<<"}\n}\n";
         output.close();
@@ -490,7 +519,7 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
             s1 = to_string(-1*n_2l->second.first.temp_nid);
             s2 = to_string(-1*n_2l->second.second.temp_nid);
             S = s1+" "+s2+" 0\n";
-            cout<<S;
+            // cout<<S;
             s_vec.push_back(S);
             if (n_2l->second.first.detour_dist > max_dd)
                 max_dd = n_2l->second.first.detour_dist;
@@ -504,7 +533,7 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
                 S2 = s1+" "+ns2+" 0\n";
                 S3 = s2+" "+ns1+" 0\n";
                 S4 = s2+" "+ns2+" 0\n";
-                cout<<S1<<S2<<S3<<S4;
+                // cout<<S1<<S2<<S3<<S4;
                 s_vec.push_back(S1);
                 s_vec.push_back(S2);
                 s_vec.push_back(S3);
@@ -513,7 +542,7 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
         }
         layer++;
     }
-    cout<<"hard c = "<<s_vec.size()<<" esti hard c = "<<hard_c<<endl;
+    // cout<<"hard c = "<<s_vec.size()<<" esti hard c = "<<hard_c<<endl;
     for (auto clause=s_vec.begin(); clause!=s_vec.end(); clause++) {
         CNF<<total_soft_weight+1<<" "<<*clause;
     }
@@ -522,8 +551,8 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
         for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
             CNF<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
             CNF<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
-            cout<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
-            cout<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
+            // cout<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
+            // cout<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
         }
     }
     CNF.close();
@@ -623,21 +652,21 @@ map<int,Detour_info> Load_MAXSAT_Output(const map<int,vector<pair<Detour_info,De
     return ans;
 }
 
-void output_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list){
-    printf("output_lp\n");
+void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list, vector<int>& ripuped_cluster){
+    printf("output_ideal_lp\n");
     int pitch = WIRE_WIDTH + MIN_SPACING;
     double st = MIN_SPACING*tan(22.5*PI / 180.0);
 
     string base_file_name = output_name + "_" + to_string(layer);
-    output_name = base_file_name + ".lp";
+    // output_name = base_file_name + ".lp";
     string comman_file_name = base_file_name + ".cmd";
     //remove .lp file and .sol file
-    string rm_command = "rm -rf "+output_name;
+    string rm_command = "rm -rf "+base_file_name+".lp";
     system(rm_command.c_str());
     rm_command = "rm -rf "+base_file_name+".sol";
     system(rm_command.c_str());
 
-    ofstream output(output_name);
+    ofstream output(base_file_name+".lp");
     ofstream command(comman_file_name);
     output<<"Minimize\n";
     output<<"obj:\n";
@@ -662,14 +691,15 @@ void output_lp(int layer, string output_name, map<int,Edge> edge_table, vector<C
         if (c->net.size() > max_n)
             max_n = c->net.size();
     }
-    cout<<"max n = "<<max_n<<endl;
-    printf("const:\nst:%f, MIN_SPACING:%d, WIRE_WIDTH:%d, l_dia:%d, MSL:%d\n", st, MIN_SPACING, WIRE_WIDTH, l_dia, MSL);
+    // cout<<"max n = "<<max_n<<endl;
+    // printf("const:\nst:%f, MIN_SPACING:%d, WIRE_WIDTH:%d, l_dia:%d, MSL:%d\n", st, MIN_SPACING, WIRE_WIDTH, l_dia, MSL);
     const_table.resize(max_n+1);
     for (int n=1; n<=max_n; n++) {
-        const_table.at(n).C0 = 6*(n-1)*st+2*MSL+4*l_dia - 2*(n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2));
+        const_table.at(n).C0 = 6*(n-1)*st+2*MSL+4*l_dia - 2*(n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2))-((2+2*sqrt(2))*(n-1)*st+2*MSL+2*sqrt(2)*l_dia);
         // printf("6*(n-1)*st=%f + 2*MSL:%d + 4*l_dia:%d + (n*(MIN_SPACING+WIRE_WIDTH):%d + l_dia/sqrt(2):%f + (n-1)*st/sqrt(2):%f\n",
         //         6*(n-1)*st,     2*MSL,     4*l_dia,     n*(MIN_SPACING+WIRE_WIDTH),      l_dia/sqrt(2),     (n-1)*st/sqrt(2));
         const_table.at(n).C1 = 2;
+        const_table.at(n).C2 = coarse_x_length/((2+2*sqrt(2))*(n-1)*st+2*MSL+2*sqrt(2)*l_dia);//snack pattern number
         const_table.at(n).bound = n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2);
         printf("#n:%d  C0:%f  C1:%f  bound:%f\n",n, const_table.at(n).C0, const_table.at(n).C1, const_table.at(n).bound);
     }
@@ -687,7 +717,7 @@ void output_lp(int layer, string output_name, map<int,Edge> edge_table, vector<C
         size_t plus_pos = temp_s.rfind("+");
         temp_s.erase(plus_pos,2);
         temp_s += "<= " + to_string(edge->second.resource*pitch) + "\n";
-        cout<<"edge: "<<edge->first<<" "<<temp_s;
+        // cout<<"edge: "<<edge->first<<" "<<temp_s;
         output<<temp_s;
         ieq.push_back(temp_s);
     }
@@ -702,73 +732,250 @@ void output_lp(int layer, string output_name, map<int,Edge> edge_table, vector<C
         }
         size_t plus_pos = s.rfind("+");
         s.erase(plus_pos,2);
-        s += ">= " + to_string(c->second.begin()->demand) + "\n";
+        s += ">= " + to_string(c->second.begin()->slack) + "\n";
         output<<s;
         idx++;
     }
     // Bound
     output<<"Bounds\n";
-    cout<<"Bounds\n";
+    // cout<<"Bounds\n";
     for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
         for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
             int n=seg->net_num;
             // cout<<"n="<<n<<endl;
             string s = "  " + seg->name + " >= " + to_string(const_table.at(n).bound) + "\n";
             output<<s;
-            cout<<s;
+            // cout<<s;
         }        
     }
 
 
     // Semi-continuous
     output<<"Semi-continuous\n";
-    cout<<"Semi-continuous\n";
+    // cout<<"Semi-continuous\n";
     for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
         for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
             output<<seg->name<<" ";
-            cout<<seg->name<<" ";
+            // cout<<seg->name<<" ";
         }
     }
     output<<"\n";
-    cout<<"\n";
+    // cout<<"\n";
 
 
     // piecewise linear function
     output<<"PWL\n";
-    cout<<"PWL\n";
+    // cout<<"PWL\n";
     idx = 0;
     for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
         for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
             int n=seg->net_num;
-            double ini_val = const_table.at(n).C0 + const_table.at(n).C1*const_table.at(n).bound;
+            double ini_val = (const_table.at(n).C0 + const_table.at(n).C1*const_table.at(n).bound)*const_table.at(n).C2;
             string s_iv = to_string(ini_val);
             s_iv.erase(s_iv.find("."), s_iv.size()-s_iv.find(".")+2);
             string slope = to_string(const_table.at(n).C1);
             string p = "  p" + to_string(idx) + ": S_" + seg->name + " = " +seg->name + " 0 (0, 0) (" + to_string(const_table.at(n).bound) + ", " + s_iv + ") "+ slope + "\n";
             pwl.push_back(p);
             output<<p;
-            cout<<p;
+            // cout<<p;
             idx++;
         }
     }
     output<<"END\n";
-    cout<<"END\n";
+    // cout<<"END\n";
     output.close();
-    command << "read " << output_name << "\n";
+    command << "read " << base_file_name << ".lp\n";
     command << "opt\n";
-    command << "write " << base_file_name<<"_"<<to_string(layer)<<".sol\n";
+    command << "write " << base_file_name<<".sol\n";
     command << "y\n";
     command.close();
+    time_t start = time(NULL);
     string command_line = "./cplex < " + comman_file_name;
     printf("command: %s\n",command_line.c_str());
     system(command_line.c_str());
+    time_t end = time(NULL);
+    cout<<"cplex consume : "<< end-start<<"\n";
+    ifstream input(base_file_name + ".sol");
+    if (!input) {
+        output_passable_lp(layer, output_name, edge_table, GR_unit, seg_list, net_list, ripuped_cluster);
+    }
+    input.close();
 }
 
-void Load_LP_Output(std::string sol_file_name) {
+void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list, vector<int>& ripuped_cluster){
+    printf("output_passable_lp\n");
+    int pitch = WIRE_WIDTH + MIN_SPACING;
+    double st = MIN_SPACING*tan(22.5*PI / 180.0);
+
+    string base_file_name = output_name + "_" + to_string(layer);
+    // output_name = base_file_name + ".lp";
+    string comman_file_name = base_file_name + ".cmd";
+    //remove .lp file and .sol file
+    string rm_command = "rm -rf "+base_file_name+"_fail.lp";
+    system(rm_command.c_str());
+    rm_command = "rm -rf "+base_file_name+".sol";
+    system(rm_command.c_str());
+
+    ofstream output(base_file_name+"_fail.lp");
+    ofstream command(comman_file_name);
+    output<<"Minimize\n";
+    output<<"obj:\n";
+    string obj = " ";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++)
+            obj += seg->name + " + ";
+    }
+    obj += " [ ";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        obj += "C" + to_string(c->first) + "_wl ^2 + ";
+    }
+    {
+        size_t plus_pos = obj.rfind("+");
+        obj.erase(plus_pos,2);
+        obj += " ] /2";
+        obj += "\n";
+    }
+
+    output<<obj;
+    vector<string> ieq;
+    vector<string> bound;
+    vector<string> pwl;
+    vector<Const> const_table;
+    int max_n(0);
+    for (auto c=GR_unit.begin(); c!=GR_unit.end(); c++) {
+        if (c->net.size() > max_n)
+            max_n = c->net.size();
+    }
+    // cout<<"max n = "<<max_n<<endl;
+    // printf("const:\nst:%f, MIN_SPACING:%d, WIRE_WIDTH:%d, l_dia:%d, MSL:%d\n", st, MIN_SPACING, WIRE_WIDTH, l_dia, MSL);
+    const_table.resize(max_n+1);
+    for (int n=1; n<=max_n; n++) {
+        const_table.at(n).C0 = 6*(n-1)*st+2*MSL+4*l_dia - 2*(n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2))-((2+2*sqrt(2))*(n-1)*st+2*MSL+2*sqrt(2)*l_dia);
+        // printf("6*(n-1)*st=%f + 2*MSL:%d + 4*l_dia:%d + (n*(MIN_SPACING+WIRE_WIDTH):%d + l_dia/sqrt(2):%f + (n-1)*st/sqrt(2):%f\n",
+        //         6*(n-1)*st,     2*MSL,     4*l_dia,     n*(MIN_SPACING+WIRE_WIDTH),      l_dia/sqrt(2),     (n-1)*st/sqrt(2));
+        const_table.at(n).C1 = 2;
+        const_table.at(n).C2 = coarse_x_length/((2+2*sqrt(2))*(n-1)*st+2*MSL+2*sqrt(2)*l_dia);//snack pattern number
+        const_table.at(n).bound = n*(MIN_SPACING+WIRE_WIDTH)+l_dia/sqrt(2)+(n-1)*st/sqrt(2);
+        printf("#n:%d  C0:%f  C1:%f  bound:%f\n",n, const_table.at(n).C0, const_table.at(n).C1, const_table.at(n).bound);
+    }
+    // inequation: x1 + x2 <= 3
+    output<<"Subject To\n";
+    for (auto edge=edge_table.begin(); edge!=edge_table.end(); edge++) {
+        output<<"  c"<<edge->first<<": ";
+        string temp_s = "";
+        for (auto seg=edge->second.segment.begin(); seg!=edge->second.segment.end(); seg++) {
+            string temp_s2 =  seg->name + " + ";
+            // string temp_s2 =  "C" + to_string(seg->cluster_idx) + "I" + to_string(seg->index) + " + ";
+            temp_s += temp_s2;
+            // output<<"C"<<to_string(seg->cluster_idx)<<"I"<<to_string(seg->index);
+        }
+        size_t plus_pos = temp_s.rfind("+");
+        temp_s.erase(plus_pos,2);
+        temp_s += "<= " + to_string(edge->second.resource*pitch) + "\n";
+        // cout<<"edge: "<<edge->first<<" "<<temp_s;
+        output<<temp_s;
+        ieq.push_back(temp_s);
+    }
+
+    // wl constraint
+    int idx(0);
+    /*for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        string slack_constraint;
+            string s= "  r" + to_string(idx) + ": ";
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            s += "S_" + seg->name + " + ";
+        }
+        size_t plus_pos = s.rfind("+");
+        s.erase(plus_pos,2);
+        s += ">= " + to_string(c->second.begin()->slack) + "\n";
+        output<<s;
+        idx++;
+    }*/
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        string slack_constraint;
+            string s= "  R" + to_string(idx) + ": ";
+        s += "C" + to_string(c->second.begin()->cluster_idx) + "_wl + ";
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            s += "S_" + seg->name + " + ";
+        }
+        size_t plus_pos = s.rfind("+");
+        s.erase(plus_pos,2);
+        s += "= " + to_string(c->second.begin()->slack) + "\n";
+        // s += ">= " + to_string(c->second.begin()->slack) + "\n";
+        output<<s;
+        idx++;
+    }
+    // Bound
+    output<<"Bounds\n";
+    // cout<<"Bounds\n";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            int n=seg->net_num;
+            // cout<<"n="<<n<<endl;
+            string s = "  " + seg->name + " >= " + to_string(const_table.at(n).bound) + "\n";
+            output<<s;
+            // cout<<s;
+        }        
+    }
+
+
+    // Semi-continuous
+    output<<"Semi-continuous\n";
+    // cout<<"Semi-continuous\n";
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            output<<seg->name<<" ";
+            // cout<<seg->name<<" ";
+        }
+    }
+    output<<"\n";
+    // cout<<"\n";
+
+
+    // piecewise linear function
+    output<<"PWL\n";
+    // cout<<"PWL\n";
+    idx = 0;
+    for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            int n=seg->net_num;
+            double ini_val = (const_table.at(n).C0 + const_table.at(n).C1*const_table.at(n).bound)*const_table.at(n).C2;
+            string s_iv = to_string(ini_val);
+            s_iv.erase(s_iv.find("."), s_iv.size()-s_iv.find(".")+2);
+            string slope = to_string(const_table.at(n).C1);
+            string p = "  p" + to_string(idx) + ": S_" + seg->name + " = " +seg->name + " 0 (0, 0) (" + to_string(const_table.at(n).bound) + ", " + s_iv + ") "+ slope + "\n";
+            pwl.push_back(p);
+            output<<p;
+            // cout<<p;
+            idx++;
+        }
+    }
+    output<<"END\n";
+    // cout<<"END\n";
+    output.close();
+    command << "read " << base_file_name << "_fail.lp\n";
+    command << "opt\n";
+    command << "write " << base_file_name<<"_fail.sol\n";
+    command << "y\n";
+    command.close();
+    time_t start = time(NULL);
+    string command_line = "./cplex < " + comman_file_name;
+    printf("command: %s\n",command_line.c_str());
+    system(command_line.c_str());
+    time_t end = time(NULL);
+    cout<<"cplex consume : "<< end-start<<"\n";
+    string fail_sol_file = base_file_name + "_fail.sol";
+    ripuped_cluster = Load_passable_LP_Output(fail_sol_file, seg_list);
+
+}
+
+void Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
     ifstream input(sol_file_name);
+    printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", sol_file_name.c_str());
     if (!input) {
-        printf("%s not found, Infeasible!!!\n",sol_file_name);
-        exit(1);
+        printf("%s not found, Infeasible!!!\n",sol_file_name.c_str());
+        // exit(1);
+        return;
     }
     string S;
     while (!input.eof()){
@@ -776,24 +983,124 @@ void Load_LP_Output(std::string sol_file_name) {
         if (S.find("<variables>")!=std::string::npos) {
             stringstream SS;
             string sc, si;
-            while (S.find("</variables>")!=std::string::npos) {
+            // cout<<"string: "<<S<<endl;
                 getline(input, S);
+            while (S.find("</variables>")==std::string::npos) {
+                // cout<<"find variable: "<<S<<endl;
                 string sep = "\"";
                 vector<string> s_vec;
                 SplitString(S,sep,s_vec);
+                // cout<<"s_vec.size="<<s_vec.size()<<endl;
                 string name = s_vec.at(1);
                 string s_val = s_vec.at(5);
+                if (name.at(0)=='S') {
+                    getline(input, S);
+                    continue;
+                }
+                    
                 size_t c_pos = name.find("C");
                 size_t i_pos = name.find("I");
-                int c,i, val;
+                int c,i;
+                double val;
                 sc.assign(name,c_pos+1,i_pos-c_pos-1);
                 si.assign(name,i_pos+1,name.size()-i_pos-1);
-                cout<<"c:"<<sc<<"I:"<<si<<endl;
+                // cout<<"C:"<<sc<<" I:"<<si<<endl;
                 SS<<sc; SS>>c;  SS.clear();
                 SS<<si; SS>>i;  SS.clear();
                 SS<<s_val; SS>>val;  SS.clear();
+                seg_list.at(c).at(i).demand = val;
+                getline(input, S);
             }
+            // cout<<S<<endl;
         }
     }
+    
+}
 
+vector<int> Load_passable_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
+    ifstream input(sol_file_name);
+    vector<int> ripuped_cluster;
+    printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", sol_file_name.c_str());
+    if (!input) {
+        printf("%s not found, Infeasible!!!\n",sol_file_name.c_str());
+        // exit(1);
+        return ripuped_cluster;
+    }
+    string S;
+    while (!input.eof()){
+        getline(input, S);
+        if (S.find("<variables>")!=std::string::npos) {
+            stringstream SS;
+            string sc, si;
+            // cout<<"string: "<<S<<endl;
+                getline(input, S);
+            while (S.find("</variables>")==std::string::npos) {
+                // cout<<"find variable: "<<S<<endl;
+                string sep = "\"";
+                vector<string> s_vec;
+                SplitString(S,sep,s_vec);
+                // cout<<"s_vec.size="<<s_vec.size()<<endl;
+                string name = s_vec.at(1);
+                string s_val = s_vec.at(5);
+                if (name.at(0)=='S') {
+                    getline(input, S);
+                    continue;
+                }
+                if (name.find("_wl")!=std::string::npos) {
+                    int c;
+                    float remain_slack;
+                    size_t c_pos = name.find("C");
+                    size_t c_pos_end = name.find("_wl");
+                    SS<<s_val;   SS>>remain_slack;   SS.clear();
+                    sc.assign(name,c_pos+1,c_pos_end-c_pos-1);
+                    SS<<sc; SS>>c;  SS.clear(); sc.clear();
+                    printf("cluster:%d remain slack val:%f\n",c,remain_slack);
+                    if (remain_slack > slack_tol) {
+                        ripuped_cluster.push_back(c);
+                    }
+
+                    getline(input, S);
+                    continue;
+                }
+                size_t c_pos = name.find("C");
+                size_t i_pos = name.find("I");
+                int c,i;
+                double val;
+                sc.assign(name,c_pos+1,i_pos-c_pos-1);
+                si.assign(name,i_pos+1,name.size()-i_pos-1);
+                // cout<<"C:"<<sc<<" I:"<<si<<endl;
+                SS<<sc; SS>>c;  SS.clear();
+                SS<<si; SS>>i;  SS.clear();
+                SS<<s_val; SS>>val;  SS.clear();
+                seg_list.at(c).at(i).demand = val;
+                getline(input, S);           
+                    
+
+            }
+            // cout<<S<<endl;
+        }
+    }
+    return ripuped_cluster;
+}
+
+void output_SER(GR* router, std::string file_name) {
+    string output_FN = file_name+".ser";
+    ofstream output(output_FN);
+    output<<"Cell_width: "<<coarse_x_length<<" Cell_height: "<<coarse_y_length<<"\n";
+    output<<"LEFT BOT: ( " <<router->total_boundary.left<<" "<<router->total_boundary.bot<<" )\n";
+    for (auto n=router->net_list.begin(); n!=router->net_list.end(); n++) {
+        if (n->ignore || !n->is2pin_net)
+            continue;
+        output<<"Net_name: "<<n->net_name<<" ID: "<<n->net_ID<<" WCS: "<<n->WCS<<"\n";
+        for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
+            auto p=&router->pin_list.at(*pid);
+            output<<"Pin_name: "<<p->pin_name<<" ID: "<<p->pin_ID<<" coor: ";
+            for (auto coor=p->ER_coarse_cell.begin(); coor!=p->ER_coarse_cell.end(); coor++) {
+                output<<"( "<<coor->x<<" "<<coor->y<<" "<<coor->z<<" ) ";
+            }
+            output<<"\n";
+        }
+        output<<"Net_END\n";
+    }
+    output.close();
 }

@@ -17,6 +17,8 @@ Net::Net(int nID, std::string nName):merged_group_ID(-1),gn_ID(-1),sub_g_ID(-1),
     net_ID = nID;
     net_name = nName;
     slack_wirelength = 0;
+    WCS = true;
+    order = -1;
 }
 void Net::update_wirelength(vector<Pin>& pin_list) {
     // printf("update_wirelength nid %d ini rwl: %d\n",net_ID,ER_routed_wirelength);
@@ -46,6 +48,7 @@ Cell::Cell() {
     cluster = -1;
     investigated = -1;
     forbidden_region = false;
+    history_cost = 0;
     edge_r.resize(8,0);
     edge_cap.resize(8,0);
     edge_demand.resize(8,0);
@@ -57,6 +60,7 @@ Cell::Cell(int w, double cap){
     cluster = -1;
     forbidden_region = false;
     investigated = -1;
+    history_cost = 0;
     edge_r.resize(8,0);
     edge_cap.resize(8,cap);
     edge_demand.resize(8,0);

@@ -95,6 +95,7 @@ class Cell{
     int investigated;//record the region which visited by cluster finding forbidden region
     bool forbidden_region;
     double cost;
+    double history_cost;
     std::tuple<int,int,int> next;
     std::tuple<int,int,int> last;
     std::vector<bool> dir;//0 TOP 1 RIGHT 2 BOT 3 LEFT 4 TR 5 BR 6 BL 7 TL
@@ -151,18 +152,20 @@ class Net{
     int gn_ID;
     int sub_g_ID;
     // std::vector<Pin> pinlist;
+    int order;
     int net_ID;
     int cluster_relative_idx;
     bool isdiff;
     bool is2pin_net;
     bool ignore;
+    bool WCS;// most weight common sequence
     double demand_val;
     int ER_routed_wirelength;//ER
     int AR_routed_wirelength;//ER
     int slack_wirelength;
     std::string net_name;
     std::vector<int> net_pinID;
-    Net():net_ID(-1),gn_ID(-1),cluster_relative_idx(-1),sub_g_ID(-1),merged_group_ID(-1),isdiff(false),ignore(false), is2pin_net(true),ER_routed_wirelength(0),AR_routed_wirelength(0), slack_wirelength(0){};
+    Net():net_ID(-1),gn_ID(-1),cluster_relative_idx(-1),sub_g_ID(-1),merged_group_ID(-1),isdiff(false),ignore(false), is2pin_net(true),ER_routed_wirelength(0),AR_routed_wirelength(0), slack_wirelength(0), WCS(true), order(-1){};
     Net(int, std::string);
     std::string get_netname(){return net_name;};
     std::vector<std::tuple<int,int,int>> coarse_GR_path;
@@ -215,15 +218,32 @@ class Group_net{
 class Cluster {
     public:
     std::vector<int> net;
+    std::vector<std::vector<int>> sub_net;
     int cluster_relative_idx;
     int max_slack;
+    int CW_idx, CCW_idx;
+    int route_order;
     double demand_val;
     Coor start, end;
     std::vector<Coor> path;
     std::vector<Coor> CW_path;
     std::vector<Coor> CCW_path;
+    std::map<Coor,int> history_path_record;
 
-    Cluster():cluster_relative_idx(-1){}
+    Cluster():cluster_relative_idx(-1),CW_idx(-1), CCW_idx(-1){}
+    bool operator< (const Cluster &cluster) const {
+        if (std::min(abs(start.x-end.x),abs(start.y-end.y))*sqrt(2) + (std::max(abs(start.x-end.x),abs(start.y-end.y))-std::min(abs(start.x-end.x),abs(start.y-end.y)))
+           <std::min(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))*sqrt(2) + (std::max(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))-std::min(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))))
+           return true;
+        else 
+            return false;
+    }
+    static bool lambda_function(const Cluster* c1, const Cluster* c2) {
+        if (std::min(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y))*sqrt(2) + (std::max(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y))-std::min(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y)))
+           <std::min(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y))*sqrt(2) + (std::max(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y))-std::min(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y))))
+           return true;
+        return false;
+    } 
 };
 
 class Drc{
@@ -293,11 +313,12 @@ class Detour_info {
     int rest_net;
     int detour_dist;
     bool CPU_side;
+    bool CW_dir;
     std::vector<Coor> path_coor;
-    Detour_info():detour_dist(1e8){}
-    Detour_info(int nid, int l):detour_dist(1e8), layer(l), rest_net(nid){}
+    Detour_info():detour_dist(1e8), layer(-1), rest_net(-1), CW_dir(false){}
+    Detour_info(int nid, int l):detour_dist(1e8), layer(l), rest_net(nid), CW_dir(false){}
     void print() {
-        printf("rest net:%d  detour_dist:%d layer:%d\n",rest_net,detour_dist,layer);
+        printf("rest net:%d CW_dir:%d detour_dist:%d layer:%d\n",rest_net,CW_dir, detour_dist,layer);
         for (auto it=path_coor.begin(); it!=path_coor.end(); it++) {
             printf("(%d,%d,%d)->",it->z,it->x,it->y);
         }
@@ -313,9 +334,10 @@ class Segment {
     int net_num;
     int slack;
     double demand;
+    Coor end1, end2;
     std::string name;
     Segment():layer(-1),index(-1),cluster_idx(-1),net_num(-1), slack(0), demand(0){}
-    Segment(int l, int idx, int n_n, int cidx, std::string _name):layer(l), index(idx), cluster_idx(cidx), net_num(n_n), slack(0), name (_name) {}
+    Segment(int l, int idx, int n_n, int cidx, std::string _name):layer(l), index(idx), cluster_idx(cidx), net_num(n_n), slack(0), name (_name), demand(0) {}
 };
 
 class Edge {
