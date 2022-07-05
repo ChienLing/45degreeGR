@@ -1,6 +1,6 @@
 #include "Structure.h"
 using namespace std;
-Pin::Pin():pin_ID(-1), net_ID(-1), CPU_side(false),ignore(false) {}
+Pin::Pin():pin_ID(-1), net_ID(-1), CPU_side(false),ignore(false){}
 Pin::Pin(int pID, int nID, std::pair<int,int> p, std::string pName, std::string nName, std::string cName):  \
                        pin_ID(pID), net_ID(nID), pin_name(pName), net_name(nName), comp_name(cName), CPU_side(false),ignore(false) {
     real_pos.X=p.X;
@@ -119,3 +119,13 @@ void Group_net::initialize(vector<Net>& net_list) {
         }
     }
 }
+
+
+Cluster::Cluster():ripup_num(0),cluster_relative_idx(-1),
+                   CW_idx(-1), CCW_idx(-1),last_AR_routed_WL(-1),cost(0){}
+Cluster::Cluster(int oci, int cri, Coor s, Coor t, double d_v):
+                ori_c_idx(oci),cluster_relative_idx(cri), start(s), 
+                end(t), demand_val(d_v),CW_idx(-1), CCW_idx(-1),cost(0){}
+Cluster::Cluster(int oci, int cri, int r_n, int m_s, double d_v):
+                ori_c_idx(oci),cluster_relative_idx(cri),ripup_num(r_n),
+                max_slack(m_s),demand_val(d_v), CW_idx(-1), CCW_idx(-1),cost(0){}

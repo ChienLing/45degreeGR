@@ -28,6 +28,9 @@ public:
     std::map<std::string,Boundary> comp_boundary;
     std::map<std::string,int> ddr_escape;
     std::map<std::string,int> cpu_escape;
+    std::map<std::string,int> CPU_AR_shift;
+    std::map<std::string,int> DDR_AR_shift;
+//              ddr       shift
     std::vector<Net> net_list;
     std::vector<Pin> pin_list;
     std::vector<Drc> drc_list;
@@ -57,7 +60,7 @@ public:
     std::map<std::string,int> group_NameID;
     
 
-    
+        //group     //layer      //nets          //nid, shift
     std::vector<std::vector<std::vector<std::pair<int,int>>>> CPU_LCS_group;
     std::vector<std::vector<std::vector<std::pair<int,int>>>> DDR_LCS_group;
     std::vector<std::vector<std::map<int,Line>>> LCS_group_net_line_align_bdy;
@@ -70,14 +73,13 @@ public:
 
     std::vector<std::vector<std::vector<int>>>cluster_relative_position;//layer : nets order
     std::vector<std::vector<Cluster>> GR_unit;
-
     std::vector<std::map<int,Edge>> edge_table;
 
     GR();
     Pin* get_cpupin(const Net& n);
     Pin* get_ddrpin(const Net& n);
-    void Golbal_routing();
-    void Golbal_routing(std::vector<int>& GR_net);
+    void Global_routing();
+    void Global_routing(std::vector<int>& GR_net);
     void update_cell_demand(int, Cell&, Coor , Boundary);
     void merge_group();
     void planning();
@@ -90,6 +92,7 @@ public:
     // void Astar(std::vector<std::vector<std::vector<Cell>>>& GRmap,  Net& net, bool coarse);
     // Path_node Astar(std::vector<std::vector<std::vector<Cell>>>& GRmap,  Sub_gn& sg_net, bool coarse);
     Path_node Astar(std::vector<std::vector<std::vector<Cell>>>& GRmap, std::vector<Cluster>& GR_unit,  Cluster& cluster, bool coarse);
+    Path_node LMaware_Astar(std::vector<std::vector<std::vector<Cell>>>& GRmap, std::vector<Cluster>& GR_unit,  Cluster& cluster, bool coarse);
     void sort_LCS_input( std::map<std::string, std::vector<Pin*>>& ddr_ddrpin,  std::map<std::string, std::vector<Pin*>>& ddr_cpupin, std::map<std::string, std::vector<std::vector<Pin*>>>& ddr_sort_ddrpin, std::map<std::string, std::vector<std::vector<Pin*>>>& ddr_sort_cpupin);
     void sort_LCS_input( std::map<std::string, std::vector<Pin*>>& ddr_ddrpin,  std::map<std::string, std::vector<Pin*>>& ddr_cpupin, std::map<std::string, std::vector<std::vector<Pin*>>>& ddr_sort_ddrpin, std::vector<std::vector<Pin*>>& sort_cpupin);
     void update_escape_routing_length();
@@ -103,8 +106,16 @@ public:
     void add_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void remove_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void AR_RSRC_allocate(std::string filename);
+    void AR_RSRC_allocate(int layer, std::string filename);
     bool RSRC_allocate_fail();
-    void ripup_cluster(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
+    void ripup_cluster(bool AstarFail, int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
+    void update_total_wl();
+    void update_total_wl(int layer);
+    void update_GR_unit();
+    void print_GR(std::vector<std::vector<Cluster>> new_GR_unit);
+    void add_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer);
+    void remove_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer);
+    void print_map_cluster(int layer);
 };
 
 

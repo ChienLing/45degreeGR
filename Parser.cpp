@@ -61,7 +61,7 @@ void Parser::read_inputfile() {
     print_diff();
     read_layer();
     read_obs();
-    print_netlist();
+    // print_netlist();
 }
 
 void Parser::read_obs() {
@@ -498,20 +498,40 @@ void Parser::read_netlist() {
     
     }
     int count(0); router->CPU_name="";
-    //decide which is cpu name
-    for (auto cp=compname_record.begin(); cp!=compname_record.end(); cp++){
-        printf("%s  %d\n", cp->first.c_str(), cp->second);
-        if (cp->second>count) {
-            if (router->CPU_name!="") {
-                router->DDR_name.push_back(router->CPU_name);
-            }
-            router->CPU_name = cp->first;
-            count = cp->second;
+    //single ddr
+    if (compname_record.size()==2) {
+        Boundary b0=router->comp_boundary.at(compname_record.begin()->first);
+        Boundary b1=router->comp_boundary.at(compname_record.rbegin()->first);
+        int area0 = (b0.right-b0.left)*(b0.top-b0.bot);
+        int area1 = (b1.right-b1.left)*(b1.top-b1.bot);
+        double density0 = (double)compname_record.begin()->second/area0;
+        double density1 = (double)compname_record.rbegin()->second/area1;
+        if (density0 > density1) {
+            router->CPU_name = compname_record.begin()->first;
+            router->DDR_name.push_back(compname_record.rbegin()->first);
         }
         else {
-                router->DDR_name.push_back(cp->first);
+            router->CPU_name = compname_record.rbegin()->first;
+            router->DDR_name.push_back(compname_record.begin()->first);
         }
     }
+    //decide which is cpu name(multiple ddr)
+    else {
+        for (auto cp=compname_record.begin(); cp!=compname_record.end(); cp++){
+            printf("%s  %d\n", cp->first.c_str(), cp->second);
+            if (cp->second>count) {
+                if (router->CPU_name!="") {
+                    router->DDR_name.push_back(router->CPU_name);
+                }
+                router->CPU_name = cp->first;
+                count = cp->second;
+            }
+            else {
+                    router->DDR_name.push_back(cp->first);
+            }
+        }        
+    }
+
     printf("CPU:%s (%d,%d)~(%d,%d)\nDDR ",router->CPU_name.c_str(), router->comp_boundary.at(router->CPU_name).left,router->comp_boundary.at(router->CPU_name).bot,
                                             router->comp_boundary.at(router->CPU_name).right,router->comp_boundary.at(router->CPU_name).top);
     for (int i=0; i<router->DDR_name.size(); i++) {
@@ -631,8 +651,9 @@ void Parser::print_netlist(){
         printf("net %d  %s  #pin %d ", n->net_ID, n->net_name.c_str(),n->net_pinID.size());
         cout<<" in"<<n->ignore<<" is2pin_net: "<<n->is2pin_net<<endl;
         for (auto pid=n->net_pinID.begin(); pid!=n->net_pinID.end(); pid++) {
-            printf("pin id: %d  CPU side:%d pin name: %s comp:%s, ddr:%s pos(%d,%d)",
+            printf("pin id: %d net id: %d  CPU side:%d pin name: %s comp:%s, ddr:%s pos(%d,%d)",
                 router->pin_list.at(*pid).pin_ID, 
+                router->pin_list.at(*pid).net_ID, 
                 router->pin_list.at(*pid).CPU_side, 
                 router->pin_list.at(*pid).pin_name.c_str(),router->pin_list.at(*pid).comp_name.c_str(), 
                 router->pin_list.at(*pid).ddr_name.c_str(),router->pin_list.at(*pid).real_pos.X, 

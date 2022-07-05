@@ -30,6 +30,11 @@ struct Coor
         y=_y;
         z=_z;
     }
+    void operator=(Coor c) {
+        x=c.x;
+        y=c.y;
+        z=c.z;
+    }
     bool operator== (const Coor &coor) const {
         return (z==coor.z && x==coor.x && y==coor.y);
     }
@@ -161,7 +166,7 @@ class Net{
     bool WCS;// most weight common sequence
     double demand_val;
     int ER_routed_wirelength;//ER
-    int AR_routed_wirelength;//ER
+    int AR_routed_wirelength;//AR
     int slack_wirelength;
     std::string net_name;
     std::vector<int> net_pinID;
@@ -175,11 +180,13 @@ class Net{
 class Path_node {
     public:
     int bounded_length;
-    double ER_routed_wirelength;
+    double expected_length;
+    double AR_routed_wirelength;
     double esti_routing_length;
     double cost;
     std::vector<Coor> path;
-    Path_node():cost(1e8),esti_routing_length(0),ER_routed_wirelength(0),bounded_length(0){}
+    Path_node():expected_length(0),cost(1e8),esti_routing_length(0),AR_routed_wirelength(0),bounded_length(0){}
+    Path_node(double el):expected_length(el),cost(1e8),esti_routing_length(0),AR_routed_wirelength(0),bounded_length(0){}
     // int next_coor;
 };
 
@@ -218,19 +225,26 @@ class Group_net{
 class Cluster {
     public:
     std::vector<int> net;
-    std::vector<std::vector<int>> sub_net;
+    int ori_c_idx;
     int cluster_relative_idx;
     int max_slack;
     int CW_idx, CCW_idx;
     int route_order;
+    int ripup_num;
     double demand_val;
+    double last_AR_routed_WL;
+    double AR_routed_wirelength;
+    double cost;
+    
     Coor start, end;
     std::vector<Coor> path;
     std::vector<Coor> CW_path;
     std::vector<Coor> CCW_path;
     std::map<Coor,int> history_path_record;
 
-    Cluster():cluster_relative_idx(-1),CW_idx(-1), CCW_idx(-1){}
+    Cluster();
+    Cluster(int oci, int cri, Coor s, Coor t, double d_v);
+    Cluster(int oci, int cri, int r_n, int m_s, double d_v);
     bool operator< (const Cluster &cluster) const {
         if (std::min(abs(start.x-end.x),abs(start.y-end.y))*sqrt(2) + (std::max(abs(start.x-end.x),abs(start.y-end.y))-std::min(abs(start.x-end.x),abs(start.y-end.y)))
            <std::min(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))*sqrt(2) + (std::max(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))-std::min(abs(cluster.start.x-cluster.end.x),abs(cluster.start.y-cluster.end.y))))
@@ -369,8 +383,8 @@ struct compare {
         // } else {
         //     return a.salary>b.salary;
         // }
-        // return (a.ER_routed_wirelength+a.cost) < (b.ER_routed_wirelength+b.cost);
-        return (a.cost+a.esti_routing_length+a.ER_routed_wirelength) > (b.cost+b.esti_routing_length+b.ER_routed_wirelength);
+        // return (a.AR_routed_wirelength+a.cost) < (b.AR_routed_wirelength+b.cost);
+        return (a.cost+a.esti_routing_length+a.AR_routed_wirelength) > (b.cost+b.esti_routing_length+b.AR_routed_wirelength);
     }
 };
 #endif

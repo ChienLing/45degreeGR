@@ -30,7 +30,7 @@ void output_gds(std::string filename, GR* router) {
         printf("cell size:%d\n", coarse_cell_size);
         output<<"gds2{600\n"
             <<"m=2018-09-14 14:26:15 a=2018-09-14 14:26:15\n"
-            <<"lib 'asap7sc7p5t_24_SL' 0.0025 2.5e-10\n"
+            <<"lib 'asap7sc7p5t_24_SL' 0.025 2.5e-10\n"
             <<"cell{c=2018-09-14 14:26:15 m=2018-09-14 14:26:15 'AND2x2_ASAP7_75t_SL'\n";
             //output GR grid line
         for (size_t i = 0; i < router->coarse_GRcell.at(0).size()+1; i++) {
@@ -75,7 +75,7 @@ void output_gds(std::string filename, GR* router) {
                 int nid = p.net_ID;
                 output<<"p{"<<idx<<" pt1 w2000.00 xy("<<p.real_pos.X<<" "<<p.real_pos.Y
                 <<" "<<p.real_pos.X<<" "<<p.real_pos.Y<<")}\n"; 
-                output<<"t{10 tt0 mc m0.025 xy("<<p.real_pos.X<<" "<<p.real_pos.Y<<") '"<<nid<<"'}\n";
+                output<<"t{1000 tt0 mc m0.025 xy("<<p.real_pos.X<<" "<<p.real_pos.Y<<") '"<<nid<<"'}\n";
             }
             // printf("\n");
         }
@@ -89,7 +89,7 @@ void output_gds(std::string filename, GR* router) {
                         auto p=router->pin_list.at(*pid);
                         output<<"p{"<<idx<<" pt1 w1000.00 xy("<<p.real_pos.X<<" "<<p.real_pos.Y
                             <<" "<<p.real_pos.X<<" "<<p.real_pos.Y<<")}\n";    
-                        // output<<"t{10 tt0 mc m0.025 xy("<<p.real_pos.X<<" "<<p.real_pos.Y<<") '"<<*nid<<"'}\n";
+                        // output<<"t{1000 tt0 mc m0.025 xy("<<p.real_pos.X<<" "<<p.real_pos.Y<<") '"<<*nid<<"'}\n";
                 }
                 
                 }
@@ -123,203 +123,208 @@ void output_gds(std::string filename, GR* router) {
                 idx++;
             }
         }
-        idx = 500;
-        // printf("#router->CPU_LCS_group:%d\n",router->CPU_LCS_group.size());
-        for (auto g=router->CPU_LCS_group.begin(); g!=router->CPU_LCS_group.end(); g++) {
-            // printf("#sub_g :%d\n",g->size());
-            for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
-                vector<int> non_LCS_net;
-                for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
-                        if (nid_shift->second==1000){
-                            non_LCS_net.push_back(nid_shift->first);
-                            continue;
-                        }
-                        for (auto pid=router->net_list.at(nid_shift->first).net_pinID.begin(); pid!=router->net_list.at(nid_shift->first).net_pinID.end(); pid++) {
-                            auto p=router->pin_list.at(*pid);
-                            // printf("{%d,%d} ",nid_shift->first,nid_shift->second);
-                            if (!p.CPU_side)
+        /**/
+
+        //print common sequence
+        if (true) {
+            idx = 500;
+            // printf("#router->CPU_LCS_group:%d\n",router->CPU_LCS_group.size());
+            for (auto g=router->CPU_LCS_group.begin(); g!=router->CPU_LCS_group.end(); g++) {
+                // printf("#sub_g :%d\n",g->size());
+                for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+                    vector<int> non_LCS_net;
+                    for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                            if (nid_shift->second==1000){
+                                non_LCS_net.push_back(nid_shift->first);
                                 continue;
-                            if (p.escape_dir==TOP || p.escape_dir==BOT) {
-                                string ddr_name=p.ddr_name;
-                                // printf("ddr name:%s\n",ddr_name.c_str());
-                                if(p.escape_dir==TOP) {
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
-                                }
-                                if(p.escape_dir==BOT) {
-                                    // if(router->ddr_escape.at(p.ddr_name)==RIGHT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
-                                }
-                                output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
-                                                             <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
-                                                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
-                                                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
-                                
                             }
-                            if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
-                                string ddr_name=p.ddr_name;
-                                // printf("ddr name:%s\n",ddr_name.c_str());
-                                if(p.escape_dir==RIGHT) {
-                                    // if(router->ddr_escape.at(p.ddr_name)==BOT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                 <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                            for (auto pid=router->net_list.at(nid_shift->first).net_pinID.begin(); pid!=router->net_list.at(nid_shift->first).net_pinID.end(); pid++) {
+                                auto p=router->pin_list.at(*pid);
+                                // printf("{%d,%d} ",nid_shift->first,nid_shift->second);
+                                if (!p.CPU_side)
+                                    continue;
+                                if (p.escape_dir==TOP || p.escape_dir==BOT) {
+                                    string ddr_name=p.ddr_name;
+                                    // printf("ddr name:%s\n",ddr_name.c_str());
+                                    if(p.escape_dir==TOP) {
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
+                                    }
+                                    if(p.escape_dir==BOT) {
+                                        // if(router->ddr_escape.at(p.ddr_name)==RIGHT)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
+                                    }
+                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
+                                                                <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
+                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
+                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
+                                    
                                 }
-                                if(p.escape_dir==LEFT) {
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                 <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
+                                    string ddr_name=p.ddr_name;
+                                    // printf("ddr name:%s\n",ddr_name.c_str());
+                                    if(p.escape_dir==RIGHT) {
+                                        // if(router->ddr_escape.at(p.ddr_name)==BOT)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    }
+                                    if(p.escape_dir==LEFT) {
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    }
+                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
+                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
+                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
+                                                                <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
+                                        // cout<<"("<<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second+100<<") ("
+                                        //          <<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
+                                        //          <<router->comp_boundary.at(p.comp_name).left-1000<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
+                                        //          <<router->comp_boundary.at(p.comp_name).left-1000<<","<<p.real_pos.Y+pitch*nid_shift->second+100<<")\n";
+                                    
                                 }
-                                output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
-                                                             <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
-                                                             <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
-                                                             <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
-                                    // cout<<"("<<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second+100<<") ("
-                                    //          <<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
-                                    //          <<router->comp_boundary.at(p.comp_name).left-1000<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
-                                    //          <<router->comp_boundary.at(p.comp_name).left-1000<<","<<p.real_pos.Y+pitch*nid_shift->second+100<<")\n";
-                                
                             }
-                        }
-                    
-                }
-                // cout<<"non_LCS_net size: "<<non_LCS_net.size()<<"\n";
-                for (auto nid=non_LCS_net.begin(); nid!=non_LCS_net.end(); nid++) {
-                    Pin* p;
-                    if (router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0)).CPU_side)
-                        p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0));
-                    else 
-                        p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
-                    for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
-                        output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
-                        // cout<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                        //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
-                        //                              <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                        //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                        //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                        //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                        //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                        //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
+                        
                     }
-                }
-                idx++;
-            }
-        }
-        idx = 500;
-        for (auto g=router->DDR_LCS_group.begin(); g!=router->DDR_LCS_group.end(); g++) {
-            for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
-                vector<int> non_LCS_net;
-                for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
-                        if (nid_shift->second==1000){
-                            non_LCS_net.push_back(nid_shift->first);
-                            continue;
+                    // cout<<"non_LCS_net size: "<<non_LCS_net.size()<<"\n";
+                    for (auto nid=non_LCS_net.begin(); nid!=non_LCS_net.end(); nid++) {
+                        Pin* p;
+                        if (router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0)).CPU_side)
+                            p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0));
+                        else 
+                            p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
+                        for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
+                            output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
+                            // cout<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                            //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
+                            //                              <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                            //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                            //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                            //                              <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                            //                              <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                            //                              <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
                         }
-                        for (auto pid=router->net_list.at(nid_shift->first).net_pinID.begin(); pid!=router->net_list.at(nid_shift->first).net_pinID.end(); pid++) {
-                            auto p=router->pin_list.at(*pid);
-                            // printf("{%d,%d} ",nid_shift->first,nid_shift->second);
-                            if (p.CPU_side)
+                    }
+                    idx++;
+                }
+            }
+            idx = 500;
+            for (auto g=router->DDR_LCS_group.begin(); g!=router->DDR_LCS_group.end(); g++) {
+                for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+                    vector<int> non_LCS_net;
+                    for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                            if (nid_shift->second==1000){
+                                non_LCS_net.push_back(nid_shift->first);
                                 continue;
-                            if (p.escape_dir==TOP || p.escape_dir==BOT) {
-                                if (p.escape_dir==TOP)
-                                output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
-                                                             <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
-                                                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
-                                                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
-                                if(p.escape_dir==TOP)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
-                                if(p.escape_dir==BOT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
-                                
                             }
-                            if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
-                                if (p.escape_dir==LEFT)
-                                output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
-                                                             <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
-                                                             <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
-                                                             <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
-                                if(p.escape_dir==RIGHT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                 <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
-                                if(p.escape_dir==LEFT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                 <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                 <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
-                                
+                            for (auto pid=router->net_list.at(nid_shift->first).net_pinID.begin(); pid!=router->net_list.at(nid_shift->first).net_pinID.end(); pid++) {
+                                auto p=router->pin_list.at(*pid);
+                                // printf("{%d,%d} ",nid_shift->first,nid_shift->second);
+                                if (p.CPU_side)
+                                    continue;
+                                if (p.escape_dir==TOP || p.escape_dir==BOT) {
+                                    if (p.escape_dir==TOP)
+                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
+                                                                <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
+                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
+                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
+                                    if(p.escape_dir==TOP)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
+                                    if(p.escape_dir==BOT)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
+                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
+                                    
+                                }
+                                if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
+                                    if (p.escape_dir==LEFT)
+                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
+                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
+                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
+                                                                <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
+                                    if(p.escape_dir==RIGHT)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    if(p.escape_dir==LEFT)
+                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    
+                                }
                             }
-                        }
-                    
-                }
-                for (auto nid=non_LCS_net.begin(); nid!=non_LCS_net.end(); nid++) {
-                    Pin* p;
-                    if (!router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0)).CPU_side)
-                        p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0));
-                    else 
-                        p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
-                    for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
-                        output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
-                                                     <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
-                                                     <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
+                        
                     }
+                    for (auto nid=non_LCS_net.begin(); nid!=non_LCS_net.end(); nid++) {
+                        Pin* p;
+                        if (!router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0)).CPU_side)
+                            p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(0));
+                        else 
+                            p=&router->pin_list.at(router->net_list.at(*nid).net_pinID.at(1));
+                        for (auto coarse_coor=p->ER_coarse_cell.begin(); coarse_coor!=p->ER_coarse_cell.end(); coarse_coor++) {
+                            output<<"b{"<<*nid<<" dt"<<p->layer<< " xy("<<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<coarse_coor->x*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<(coarse_coor->y+1)*coarse_y_length+router->total_boundary.bot<<" "
+                                                        <<(coarse_coor->x+1)*coarse_x_length+router->total_boundary.left<<" "
+                                                        <<coarse_coor->y*coarse_y_length+router->total_boundary.bot<<")}\n";
+                        }
+                    }
+                    idx++;
                 }
-                idx++;
             }
-        }
-        idx = 500;
-        
-        for (auto g=router->LCS_group_net_line_align_bdy.begin(); g!=router->LCS_group_net_line_align_bdy.end(); g++) {
-            for (auto sub_g=g->begin(); sub_g!=g->end();  sub_g++) {
-                for (auto nid_l=sub_g->begin(); nid_l!=sub_g->end(); nid_l++) {
-                    // output<<"b{"<<idx<<" dt0 xy("<<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y<<" "
-                    //                              <<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y<<" "
-                    //                              <<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<" "
-                    //                              <<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<")}\n";
-                    int cluster_idx = router->net_list.at(nid_l->first).cluster_relative_idx;
-                    output<<"b{"<<idx<<" dt"<<cluster_idx<<" xy("<<nid_l->second.ep1.X-100<<" "<<nid_l->second.ep1.Y<<" "
-                                                 <<nid_l->second.ep1.X+100<<" "<<nid_l->second.ep1.Y<<" "
-                                                 <<nid_l->second.ep2.X+100<<" "<<nid_l->second.ep2.Y<<" "
-                                                 <<nid_l->second.ep2.X-100<<" "<<nid_l->second.ep2.Y<<")}\n";
-                    // output<<"p{"<<idx<<"dt"<<cluster_idx<<" pt1 w8.00 xy("<<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y
-                    //     <<" "<<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<")}\n"; 
+            idx = 500;
+            
+            for (auto g=router->LCS_group_net_line_align_bdy.begin(); g!=router->LCS_group_net_line_align_bdy.end(); g++) {
+                for (auto sub_g=g->begin(); sub_g!=g->end();  sub_g++) {
+                    for (auto nid_l=sub_g->begin(); nid_l!=sub_g->end(); nid_l++) {
+                        // output<<"b{"<<idx<<" dt0 xy("<<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y<<" "
+                        //                              <<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y<<" "
+                        //                              <<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<" "
+                        //                              <<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<")}\n";
+                        int cluster_idx = router->net_list.at(nid_l->first).cluster_relative_idx;
+                        output<<"b{"<<idx<<" dt"<<cluster_idx<<" xy("<<nid_l->second.ep1.X-100<<" "<<nid_l->second.ep1.Y<<" "
+                                                    <<nid_l->second.ep1.X+100<<" "<<nid_l->second.ep1.Y<<" "
+                                                    <<nid_l->second.ep2.X+100<<" "<<nid_l->second.ep2.Y<<" "
+                                                    <<nid_l->second.ep2.X-100<<" "<<nid_l->second.ep2.Y<<")}\n";
+                        // output<<"p{"<<idx<<"dt"<<cluster_idx<<" pt1 w8.00 xy("<<nid_l->second.ep1.X<<" "<<nid_l->second.ep1.Y
+                        //     <<" "<<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<")}\n"; 
+                    }
+                    idx++;
                 }
-                idx++;
             }
         }
-        idx=700;
-        for (auto l=router->l_restnet_line.begin(); l!=router->l_restnet_line.end(); l++) {
-            for (auto line=l->begin(); line!=l->end(); line++) {
-                output<<"p{"<<idx<<" dt"<< line->net <<" pt1 w200.00 xy("<<line->ep1.X<<" "<<line->ep1.Y
-                            <<" "<<line->ep2.X<<" "<<line->ep2.Y<<")}\n"; 
-            }
-            idx++;
-        }
+        // idx=700;
+        // for (auto l=router->l_restnet_line.begin(); l!=router->l_restnet_line.end(); l++) {
+        //     for (auto line=l->begin(); line!=l->end(); line++) {
+        //         output<<"p{"<<idx<<" dt"<< line->net <<" pt1 w200.00 xy("<<line->ep1.X<<" "<<line->ep1.Y
+        //                     <<" "<<line->ep2.X<<" "<<line->ep2.Y<<")}\n"; 
+        //     }
+        //     idx++;
+        // }
         idx = 600;
         // for (auto mg=router->merged_group_net.begin(); mg!=router->merged_group_net.end(); mg++) {
         //     for (auto pos_g=mg->sgn.begin(); pos_g!=mg->sgn.end(); pos_g++) {
@@ -338,7 +343,7 @@ void output_gds(std::string filename, GR* router) {
         //     }
         // }
         int layer_num(0);
-        /*for (auto l=router->GR_unit.begin(); l!=router->GR_unit.end(); l++) {
+        for (auto l=router->GR_unit.begin(); l!=router->GR_unit.end(); l++) {
             int c(0);
             // printf("layer:%d\n",layer_num);
             for (auto cluster=l->begin(); cluster!=l->end(); cluster++) {
@@ -371,7 +376,7 @@ void output_gds(std::string filename, GR* router) {
                 c++;
             }
             layer_num++;
-        }*/
+        }/*
         layer_num=0;
         for (auto l=router->seg_list.begin(); l!=router->seg_list.end(); l++) {
             for (auto c=l->begin(); c!=l->end(); c++) {
@@ -384,11 +389,12 @@ void output_gds(std::string filename, GR* router) {
                     output<<"p{"<<idx+layer_num<<" dt"<<s->cluster_idx<<" pt1 w800.00 xy("<<p1.X<<" "<<p1.Y
                             <<" "<<p2.X<<" "<<p2.Y<<")}\n";  
                     output<<"t{"<<idx+layer_num<<" tt"<<s->cluster_idx<<" mc m0.025 xy("<<p3.X<<" "<<p3.Y<<") '"<<s->demand/pitch<<"'}\n";
+                    //                                                                                              +s->net_num
                     // cout<<"demand val: "<<s->demand<<"\n";
                 }
             }
             layer_num++;
-        }
+        }*/
 
 
         // group partition by postition
@@ -446,10 +452,10 @@ void output_gds(std::string filename, GR* router) {
                 int right_r = router->coarse_GRcell.at(lcu_idx).at(i).at(j).edge_r[RIGHT];
                 int bot_r = router->coarse_GRcell.at(lcu_idx).at(i).at(j).edge_r[BOT];
                 int top_r = router->coarse_GRcell.at(lcu_idx).at(i).at(j).edge_r[TOP];
-                output<<"t{10 tt1 mc m0.025 xy("<<pos_L.X<<" "<<pos_L.Y<<") '"<<left_r<<"'}\n";
-                output<<"t{10 tt1 mc m0.025 xy("<<pos_R.X<<" "<<pos_R.Y<<") '"<<right_r<<"'}\n";
-                output<<"t{10 tt1 mc m0.025 xy("<<pos_B.X<<" "<<pos_B.Y<<") '"<<bot_r<<"'}\n";
-                output<<"t{10 tt1 mc m0.025 xy("<<pos_T.X<<" "<<pos_T.Y<<") '"<<top_r<<"'}\n";
+                output<<"t{1000 tt1 mc m0.025 xy("<<pos_L.X<<" "<<pos_L.Y<<") '"<<left_r<<"'}\n";
+                output<<"t{1000 tt1 mc m0.025 xy("<<pos_R.X<<" "<<pos_R.Y<<") '"<<right_r<<"'}\n";
+                output<<"t{1000 tt1 mc m0.025 xy("<<pos_B.X<<" "<<pos_B.Y<<") '"<<bot_r<<"'}\n";
+                output<<"t{1000 tt1 mc m0.025 xy("<<pos_T.X<<" "<<pos_T.Y<<") '"<<top_r<<"'}\n";
             }
             // printf("output GDS (0,6,7) edge_r=%f",router->coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
             // printf("\n");
@@ -560,9 +566,6 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
     cout<<"MAX SAT commend: "<<command<<endl;
     system(command.c_str());
     cout << "uwrmaxsat finish" << endl;
-    // if (Satisfiable("CNF.out") {
-
-    // }
 }
 
 map<int,Detour_info> Load_MAXSAT_Output(const map<int,vector<pair<Detour_info,Detour_info>>>& coarse_detour_info, const map<int,int>& ID_restnet){
@@ -652,7 +655,7 @@ map<int,Detour_info> Load_MAXSAT_Output(const map<int,vector<pair<Detour_info,De
     return ans;
 }
 
-void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list, vector<int>& ripuped_cluster){
+void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list){
     printf("output_ideal_lp\n");
     int pitch = WIRE_WIDTH + MIN_SPACING;
     double st = MIN_SPACING*tan(22.5*PI / 180.0);
@@ -670,18 +673,33 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
     ofstream command(comman_file_name);
     output<<"Minimize\n";
     output<<"obj:\n";
+    // cout<<"Minimize\n";
+    // cout<<"obj:\n";
     string obj = " ";
+    // int c_idx(0);
+    // printf("seg list size:%d\n",seg_list.size());
     for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
-        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++)
+        // cout<<"c_idx"<<c_idx<<"\n";
+        // int s_idx(0);
+        for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
+            // cout<<"seg"<<s_idx<<"\n";
             obj += seg->name + " + ";
+            // cout<< seg->name << " + ";
+            // s_idx++;
+        }
+        // c_idx++;
     }
+    // cout<<obj;
     {
         size_t plus_pos = obj.rfind("+");
+        // if (plus_pos == std::string::npos)
+        //     return;
         obj.erase(plus_pos,2);
         obj += "\n";
     }
 
     output<<obj;
+    // cout<<obj;
     vector<string> ieq;
     vector<string> bound;
     vector<string> pwl;
@@ -761,7 +779,7 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
     }
     output<<"\n";
     // cout<<"\n";
-
+// 
 
     // piecewise linear function
     output<<"PWL\n";
@@ -795,14 +813,9 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
     system(command_line.c_str());
     time_t end = time(NULL);
     cout<<"cplex consume : "<< end-start<<"\n";
-    ifstream input(base_file_name + ".sol");
-    if (!input) {
-        output_passable_lp(layer, output_name, edge_table, GR_unit, seg_list, net_list, ripuped_cluster);
-    }
-    input.close();
 }
 
-void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list, vector<int>& ripuped_cluster){
+void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table, vector<Cluster>& GR_unit, map<int,vector<Segment>>& seg_list, vector<Net>& net_list){
     printf("output_passable_lp\n");
     int pitch = WIRE_WIDTH + MIN_SPACING;
     double st = MIN_SPACING*tan(22.5*PI / 180.0);
@@ -964,18 +977,16 @@ void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table,
     system(command_line.c_str());
     time_t end = time(NULL);
     cout<<"cplex consume : "<< end-start<<"\n";
-    string fail_sol_file = base_file_name + "_fail.sol";
-    ripuped_cluster = Load_passable_LP_Output(fail_sol_file, seg_list);
 
 }
 
-void Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
+bool Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
     ifstream input(sol_file_name);
     printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", sol_file_name.c_str());
     if (!input) {
         printf("%s not found, Infeasible!!!\n",sol_file_name.c_str());
         // exit(1);
-        return;
+        return false;
     }
     string S;
     while (!input.eof()){
@@ -1014,15 +1025,17 @@ void Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& s
             // cout<<S<<endl;
         }
     }
-    
+    return true;
 }
 
-vector<int> Load_passable_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
-    ifstream input(sol_file_name);
+vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
+    string base_file_name = sol_file_name + "_" + to_string(layer);;
+    string fail_sol_file = base_file_name + "_fail.sol";
+    ifstream input(fail_sol_file);
     vector<int> ripuped_cluster;
-    printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", sol_file_name.c_str());
+    printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", fail_sol_file.c_str());
     if (!input) {
-        printf("%s not found, Infeasible!!!\n",sol_file_name.c_str());
+        printf("%s not found, Infeasible!!!\n",fail_sol_file.c_str());
         // exit(1);
         return ripuped_cluster;
     }

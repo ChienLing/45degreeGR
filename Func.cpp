@@ -564,7 +564,9 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             if (VERBOSITY) 
                 printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
             int rr=it->second.R.size(), ll=next_it->second.L.size();
-            while (it->second.R.size()+next_it->second.L.size() > cap) {
+            if (cap<0)
+                cap=0;
+            while ((int)it->second.R.size()+(int)next_it->second.L.size() > cap) {
                 bool del(false);
                 for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
@@ -647,7 +649,9 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 cap++;
             if (VERBOSITY) 
                 printf("%d > cap(%d)\n",it->second.R.size()+next_it->second.L.size(),cap);
-            while (it->second.R.size()+next_it->second.L.size() > cap) {
+            if (cap<0)
+                cap=0;
+            while ((int)it->second.R.size()+(int)next_it->second.L.size() > cap) {
                 bool del(false);
                 for (auto erase_it=it->second.R.begin(); erase_it!=it->second.R.end(); erase_it++) {
                     if (net_appearnum.at(erase_it->ID) > 1) {
@@ -683,6 +687,9 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 }
                 if (del)
                     continue;
+                
+                if (VERBOSITY) 
+                    printf("it->second.R.size:%d  next_it->second.L.size:%d\n",it->second.R.size(), next_it->second.L.size());
                 if (it->second.R.size() > next_it->second.L.size()) {
                     if (VERBOSITY) 
                         printf("pop %d\n",it->second.R.back().ID);
