@@ -4,7 +4,7 @@ using namespace std;
 #define R second
 #define X first
 #define Y second
-#define VERBOSITY false
+#define VERBOSITY true
 void SplitString(const std::string& s, const std::string& c, std::vector<std::string>& v) {
       std::string::size_type pos1, pos2;
       pos2 = s.find(c);
@@ -559,6 +559,12 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
             int nextit_f=next_it->first;
             int l=location1.at(it->first), r=location1.at(next_it->first);
             int cap = abs((location1.at(it->first)-location1.at(next_it->first))/pitch);
+            int next_loc;
+            if (next_it->first < it->first)
+                next_loc = it->first-1;
+            else
+                next_loc = it->first+1;
+            cap = abs((location1.at(it->first)-location1.at(next_loc))/pitch);
             if (record_M1[it->first].empty()||record_M1[next_it->first].size()==0)
                 cap++;
             if (VERBOSITY) 
@@ -645,6 +651,14 @@ pair<vector<pair<int,int>>,vector<pair<int,int>>> LCS( vector<decode_node> v1,  
                 continue;
             int pitch=MIN_SPACING+WIRE_WIDTH;   pitch*=1.4;
             int cap = abs((location2.at(it->first)-location2.at(next_it->first))/pitch)-1;
+            int next_loc;
+            if (next_it->first < it->first)
+                next_loc = it->first-1;
+            else
+                next_loc = it->first+1;
+            if (VERBOSITY) 
+                printf("loc:%d next loc:%d\n",it->first, next_loc);
+            cap = abs((location2.at(it->first)-location2.at(next_loc))/pitch);
             if (record_M2[it->first].size()==0||record_M2[next_it->first].size()==0)
                 cap++;
             if (VERBOSITY) 
@@ -1024,7 +1038,4 @@ void separate_comp(map<int,set<int>> adjacent_list, map<int,vertex> vertex_list)
         }
         comp++;
     }
-}
-void BFS() {
-
 }

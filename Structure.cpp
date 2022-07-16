@@ -122,10 +122,10 @@ void Group_net::initialize(vector<Net>& net_list) {
 
 
 Cluster::Cluster():ripup_num(0),cluster_relative_idx(-1),
-                   CW_idx(-1), CCW_idx(-1),last_AR_routed_WL(-1),cost(0){}
+                   CW_idx(-1), CCW_idx(-1),last_AR_routed_WL(-1),cost(0),remain_slack(0),route_order(0){}
 Cluster::Cluster(int oci, int cri, Coor s, Coor t, double d_v):
                 ori_c_idx(oci),cluster_relative_idx(cri), start(s), 
-                end(t), demand_val(d_v),CW_idx(-1), CCW_idx(-1),cost(0){}
+                end(t), demand_val(d_v),CW_idx(-1), CCW_idx(-1),cost(0),remain_slack(0),route_order(0){}
 Cluster::Cluster(int oci, int cri, int r_n, int m_s, double d_v):
                 ori_c_idx(oci),cluster_relative_idx(cri),ripup_num(r_n),
-                max_slack(m_s),demand_val(d_v), CW_idx(-1), CCW_idx(-1),cost(0){}
+                max_slack(m_s),demand_val(d_v), CW_idx(-1), CCW_idx(-1),cost(0),remain_slack(0),route_order(0){}

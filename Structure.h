@@ -228,6 +228,7 @@ class Cluster {
     int ori_c_idx;
     int cluster_relative_idx;
     int max_slack;
+    int remain_slack;
     int CW_idx, CCW_idx;
     int route_order;
     int ripup_num;
@@ -240,6 +241,9 @@ class Cluster {
     std::vector<Coor> path;
     std::vector<Coor> CW_path;
     std::vector<Coor> CCW_path;
+    std::set<int> CW_fbd_edge;
+    std::set<int> CCW_fbd_edge;
+    std::set<int> fbd_edge;
     std::map<Coor,int> history_path_record;
 
     Cluster();

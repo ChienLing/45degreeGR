@@ -61,7 +61,7 @@ void Parser::read_inputfile() {
     print_diff();
     read_layer();
     read_obs();
-    // print_netlist();
+    print_netlist();
 }
 
 void Parser::read_obs() {
@@ -432,7 +432,7 @@ void Parser::read_netlist() {
                     SS >> name >> XY >> type;
                     std::string sep = ",";
                     SplitString(XY, sep, XY_Slist);
-                    if (name.find("U")==std::string::npos)
+                    if (name.find("U")==std::string::npos && name.find("IC")==std::string::npos)
                         continue;
                     string compname; compname.assign(name,0,name.find("."));
                     compname_record[compname]++;

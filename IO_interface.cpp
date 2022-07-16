@@ -123,10 +123,10 @@ void output_gds(std::string filename, GR* router) {
                 idx++;
             }
         }
-        /**/
 
         //print common sequence
-        if (true) {
+        /**/
+        if (false) {
             idx = 500;
             // printf("#router->CPU_LCS_group:%d\n",router->CPU_LCS_group.size());
             for (auto g=router->CPU_LCS_group.begin(); g!=router->CPU_LCS_group.end(); g++) {
@@ -326,6 +326,14 @@ void output_gds(std::string filename, GR* router) {
         //     idx++;
         // }
         idx = 600;
+        
+        int hor_edge_num = (router->coarse_x_size-1)*router->coarse_y_size;
+        int ver_edge_num = router->coarse_x_size*(router->coarse_y_size-1);
+        int RT_edge_num = (router->coarse_x_size-1)*(router->coarse_y_size-1);
+        int RB_edge_num = (router->coarse_x_size-1)*(router->coarse_y_size-1);
+        int stage1 = hor_edge_num;
+        int stage2 = hor_edge_num+ver_edge_num;
+        int stage3 = hor_edge_num+ver_edge_num+RT_edge_num;
         // for (auto mg=router->merged_group_net.begin(); mg!=router->merged_group_net.end(); mg++) {
         //     for (auto pos_g=mg->sgn.begin(); pos_g!=mg->sgn.end(); pos_g++) {
         //         for (auto coor=pos_g->path_node.path.begin();coor!=pos_g->path_node.path.end();coor++) {
@@ -370,8 +378,94 @@ void output_gds(std::string filename, GR* router) {
                 for (auto coor=cluster->CCW_path.begin(); coor!=cluster->CCW_path.end(); coor++) {
                     pair<int,int> p1 = {router->total_boundary.left+(double)(coor->x+0.5)*coarse_x_length , 
                                         router->total_boundary.bot+(double)(coor->y+0.5)*coarse_y_length};
-                    output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt5 w800.00 xy("<<p1.X<<" "<<p1.Y
+                    output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt2 w800.00 xy("<<p1.X<<" "<<p1.Y
                             <<" "<<p1.X<<" "<<p1.Y<<")}\n"; 
+                }
+                for (auto edge_idx=cluster->CW_fbd_edge.begin(); edge_idx!=cluster->CW_fbd_edge.end(); edge_idx++) {
+                    pair<int,int> p1;
+                    int edge_i = *edge_idx;
+                    int y,x;
+                    if (edge_i<stage1) {//hor
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+0.5)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt1 w400.00 xy("<<p1.X-1000<<" "<<p1.Y
+                                <<" "<<p1.X+1000<<" "<<p1.Y<<")}\n"; 
+                    }
+                    else if (edge_i<stage2) {
+                        edge_i-=stage1;
+                        y = edge_i/(router->coarse_y_size-1);
+                        x = edge_i%(router->coarse_y_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+0.5)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt1 w400.00 xy("<<p1.X<<" "<<p1.Y-1000
+                                <<" "<<p1.X<<" "<<p1.Y+1000<<")}\n"; 
+                    }
+                    else if (edge_i<stage3) {
+                        edge_i-=stage2;
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt1 w400.00 xy("<<p1.X-500<<" "<<p1.Y-500
+                                <<" "<<p1.X+500<<" "<<p1.Y+500<<")}\n"; 
+                    }
+                    else {
+                        edge_i-=stage3;
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt1 w400.00 xy("<<p1.X-500<<" "<<p1.Y+500
+                                <<" "<<p1.X+500<<" "<<p1.Y-500<<")}\n"; 
+                    }
+                    // output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt1 w800.00 xy("<<p1.X<<" "<<p1.Y
+                    //         <<" "<<p1.X<<" "<<p1.Y<<")}\n"; 
+                    // cout<<"1.cluster:"<<c<<" xy("<<x<<" "<<y<<")\n";  
+                }
+                for (auto edge_idx=cluster->CCW_fbd_edge.begin(); edge_idx!=cluster->CCW_fbd_edge.end(); edge_idx++) {
+                    pair<int,int> p1;
+                    int edge_i = *edge_idx;
+                    int y,x;
+                    if (edge_i<stage1) {//hor
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+0.5)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt3 w400.00 xy("<<p1.X-1000<<" "<<p1.Y
+                                <<" "<<p1.X+1000<<" "<<p1.Y<<")}\n"; 
+                    }
+                    else if (edge_i<stage2) {
+                        edge_i-=stage1;
+                        y = edge_i/(router->coarse_x_size);
+                        x = edge_i%(router->coarse_x_size);
+                        p1 = {router->total_boundary.left+(double)(x+0.5)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt3 w400.00 xy("<<p1.X<<" "<<p1.Y-1000
+                                <<" "<<p1.X<<" "<<p1.Y+1000<<")}\n"; 
+                    }
+                    else if (edge_i<stage3) {
+                        edge_i-=stage2;
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt3 w400.00 xy("<<p1.X-500<<" "<<p1.Y-500
+                                <<" "<<p1.X+500<<" "<<p1.Y+500<<")}\n"; 
+                    }
+                    else {
+                        edge_i-=stage3;
+                        y = edge_i/(router->coarse_x_size-1);
+                        x = edge_i%(router->coarse_x_size-1);
+                        p1 = {router->total_boundary.left+(double)(x+1)*coarse_x_length , 
+                                            router->total_boundary.bot+(double)(y+1)*coarse_y_length};
+                        output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt3 w400.00 xy("<<p1.X-500<<" "<<p1.Y+500
+                                <<" "<<p1.X+500<<" "<<p1.Y-500<<")}\n"; 
+                    }
+                    // output<<"p{"<<idx+layer_num<<" dt"<<c<<" pt2 w800.00 xy("<<p1.X<<" "<<p1.Y
+                    //         <<" "<<p1.X<<" "<<p1.Y<<")}\n"; 
+                    // cout<<"2.cluster:"<<c<<" xy("<<x<<" "<<y<<")\n"; 
                 }
                 c++;
             }
@@ -516,7 +610,7 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
     cardinal_num = total_layer*total_net*2;
     soft_c       = total_layer*total_net*2;
     hard_c += ((2*total_layer)*(2*total_layer-1)/2)*total_net;
-    CNF <<  "p wcnf " << cardinal_num << ' ' << hard_c+soft_c << ' ' << total_soft_weight + 1  << endl;
+    CNF <<  "p wcnf " << cardinal_num << ' ' << hard_c+soft_c << ' ' << total_soft_weight + cardinal_num + 1  << endl;
     int layer(0);
     for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
         for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
@@ -550,13 +644,13 @@ void output_CNF(vector<string>& s_vec,const vector<map<int,pair<Line,Line>>>& re
     }
     // cout<<"hard c = "<<s_vec.size()<<" esti hard c = "<<hard_c<<endl;
     for (auto clause=s_vec.begin(); clause!=s_vec.end(); clause++) {
-        CNF<<total_soft_weight+1<<" "<<*clause;
+        CNF<<total_soft_weight+ cardinal_num + 1<<" "<<*clause;
     }
-    
+    //soft clause
     for (auto l=restnet_line.begin(); l!=restnet_line.end(); l++) {
         for (auto n_2l=l->begin(); n_2l!=l->end(); n_2l++) {
-            CNF<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
-            CNF<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
+            CNF<<max_dd-n_2l->second.first.detour_dist+1 <<" "<<n_2l->second.first.temp_nid <<" 0\n";
+            CNF<<max_dd-n_2l->second.second.detour_dist+1<<" "<<n_2l->second.second.temp_nid<<" 0\n";
             // cout<<max_dd-n_2l->second.first.detour_dist <<" "<<n_2l->second.first.temp_nid <<" 0\n";
             // cout<<max_dd-n_2l->second.second.detour_dist<<" "<<n_2l->second.second.temp_nid<<" 0\n";
         }
@@ -673,21 +767,28 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
     ofstream command(comman_file_name);
     output<<"Minimize\n";
     output<<"obj:\n";
-    // cout<<"Minimize\n";
-    // cout<<"obj:\n";
+    bool print(false);
+    if (print){
+        cout<<"Minimize\n";
+        cout<<"obj:\n";
+    }
     string obj = " ";
-    // int c_idx(0);
-    // printf("seg list size:%d\n",seg_list.size());
+    int c_idx(0);
+    if (print)
+        printf("seg list size:%d\n",seg_list.size());
     for (auto c=seg_list.begin(); c!=seg_list.end(); c++) {
-        // cout<<"c_idx"<<c_idx<<"\n";
-        // int s_idx(0);
+        if (print)
+            cout<<"c_idx"<<c_idx<<"\n";
+        int s_idx(0);
         for (auto seg=c->second.begin(); seg!=c->second.end(); seg++) {
-            // cout<<"seg"<<s_idx<<"\n";
+            if (print)
+                cout<<"seg"<<s_idx<<"\n";
             obj += seg->name + " + ";
-            // cout<< seg->name << " + ";
-            // s_idx++;
+            if (print)
+                cout<< seg->name << " + ";
+            s_idx++;
         }
-        // c_idx++;
+        c_idx++;
     }
     // cout<<obj;
     {
@@ -709,7 +810,8 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
         if (c->net.size() > max_n)
             max_n = c->net.size();
     }
-    // cout<<"max n = "<<max_n<<endl;
+    if (print)
+        cout<<"max n = "<<max_n<<endl;
     // printf("const:\nst:%f, MIN_SPACING:%d, WIRE_WIDTH:%d, l_dia:%d, MSL:%d\n", st, MIN_SPACING, WIRE_WIDTH, l_dia, MSL);
     const_table.resize(max_n+1);
     for (int n=1; n<=max_n; n++) {
@@ -735,7 +837,8 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
         size_t plus_pos = temp_s.rfind("+");
         temp_s.erase(plus_pos,2);
         temp_s += "<= " + to_string(edge->second.resource*pitch) + "\n";
-        // cout<<"edge: "<<edge->first<<" "<<temp_s;
+        if (print)
+            cout<<"edge: "<<edge->first<<" "<<temp_s;
         output<<temp_s;
         ieq.push_back(temp_s);
     }
@@ -803,6 +906,7 @@ void output_ideal_lp(int layer, string output_name, map<int,Edge> edge_table, ve
     // cout<<"END\n";
     output.close();
     command << "read " << base_file_name << ".lp\n";
+    command << "set timelimit 60\n";
     command << "opt\n";
     command << "write " << base_file_name<<".sol\n";
     command << "y\n";
@@ -826,7 +930,7 @@ void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table,
     //remove .lp file and .sol file
     string rm_command = "rm -rf "+base_file_name+"_fail.lp";
     system(rm_command.c_str());
-    rm_command = "rm -rf "+base_file_name+".sol";
+    rm_command = "rm -rf "+base_file_name+"_fail.sol";
     system(rm_command.c_str());
 
     ofstream output(base_file_name+"_fail.lp");
@@ -967,6 +1071,7 @@ void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table,
     // cout<<"END\n";
     output.close();
     command << "read " << base_file_name << "_fail.lp\n";
+    command << "set timelimit 60\n";
     command << "opt\n";
     command << "write " << base_file_name<<"_fail.sol\n";
     command << "y\n";
@@ -980,7 +1085,7 @@ void output_passable_lp(int layer, string output_name, map<int,Edge> edge_table,
 
 }
 
-bool Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
+bool Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& seg_list, vector<Cluster>& _GR_unit) {
     ifstream input(sol_file_name);
     printf("Load %s file!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", sol_file_name.c_str());
     if (!input) {
@@ -1020,6 +1125,8 @@ bool Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& s
                 SS<<si; SS>>i;  SS.clear();
                 SS<<s_val; SS>>val;  SS.clear();
                 seg_list.at(c).at(i).demand = val;
+                _GR_unit.at(c).remain_slack = 0;
+                // printf("c:%d remain slack:%d\n",c, _GR_unit.at(c).remain_slack);
                 getline(input, S);
             }
             // cout<<S<<endl;
@@ -1028,7 +1135,7 @@ bool Load_ideal_LP_Output(std::string sol_file_name, map<int,vector<Segment>>& s
     return true;
 }
 
-vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, map<int,vector<Segment>>& seg_list) {
+vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, map<int,vector<Segment>>& seg_list, vector<Cluster>& _GR_unit) {
     string base_file_name = sol_file_name + "_" + to_string(layer);;
     string fail_sol_file = base_file_name + "_fail.sol";
     ifstream input(fail_sol_file);
@@ -1067,7 +1174,8 @@ vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, map<in
                     SS<<s_val;   SS>>remain_slack;   SS.clear();
                     sc.assign(name,c_pos+1,c_pos_end-c_pos-1);
                     SS<<sc; SS>>c;  SS.clear(); sc.clear();
-                    printf("cluster:%d remain slack val:%f\n",c,remain_slack);
+                    printf("cluster:%d remain slack val:%d->%f\n",c,_GR_unit.at(c).max_slack,remain_slack);
+                    _GR_unit.at(c).remain_slack = remain_slack;
                     if (remain_slack > slack_tol) {
                         ripuped_cluster.push_back(c);
                     }
@@ -1085,6 +1193,10 @@ vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, map<in
                 SS<<sc; SS>>c;  SS.clear();
                 SS<<si; SS>>i;  SS.clear();
                 SS<<s_val; SS>>val;  SS.clear();
+                if (layer==1 && seg_list.find(c)==seg_list.end()) {
+                    printf("seg_list no cluster:%d\n",c);
+
+                }
                 seg_list.at(c).at(i).demand = val;
                 getline(input, S);           
                     

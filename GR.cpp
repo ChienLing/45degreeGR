@@ -7,6 +7,10 @@ using namespace std;
 #define f(i,s,e) for(int i=s; i<=e; i++)
 GR::GR(){}
 
+
+void GR::rotate_ddr(){}
+void GR::birotate_ddr(){}
+
 void GR::merge_group() {
     //if the net in different length matching groups simutaneously, then merge group
     //if the region of pins of ddr1 and ddr2 have overlap, then merge group (for weigtedLCS)
@@ -1413,7 +1417,7 @@ void GR::update_cell_demand(int coarse, Cell& cell, Coor coor, Boundary obs_bd){
 
 Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_unit, Cluster& cluster, bool coarse) {
     printf("||||||||||||||||Astar(%d): ", cluster.cluster_relative_idx);
-    int check_idx = 10;
+    int check_idx = -1;
     int c_idx = cluster.cluster_relative_idx;
     double x_dist = abs(cluster.start.x-cluster.end.x);
     double y_dist = abs(cluster.start.y-cluster.end.y);
@@ -1640,7 +1644,7 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                             double min_yr = min(yr,next_yr);
                             if (min_xr<cluster.demand_val || min_yr<cluster.demand_val) {
                                 if (c_idx==check_idx) {
-                                    printf("RB(%d,%d,%d) min_xr:%f  min_yr:%d\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
+                                    printf("RB(%d,%d,%d) min_xr:%f  min_yr:%f\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
                                 }
                                 continue;
                             }
@@ -1915,44 +1919,55 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
 }
 
 Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_unit, Cluster& cluster, bool coarse) {
-    printf("\n|||||||||||||||| LMaware_Astar(%d): ", cluster.cluster_relative_idx);
-    double expected_length = (double)(cluster.max_slack+cluster.last_AR_routed_WL)/coarse_x_length;
+    printf("||||||||||||||||LMaware_Astar(%d): ", cluster.cluster_relative_idx);
+    int check_idx = -1;
     int c_idx = cluster.cluster_relative_idx;
+    double x_dist = abs(cluster.start.x-cluster.end.x);
+    double y_dist = abs(cluster.start.y-cluster.end.y);
+    double low_bound_WL = cluster.max_slack<0.6*coarse_x_length?0:cluster.last_AR_routed_WL+(cluster.max_slack/coarse_x_length)/cluster.last_AR_routed_WL+cluster.ripup_num*0.1;
+    double upper_bound_WL = cluster.max_slack<0.6*coarse_x_length?cluster.last_AR_routed_WL+1:cluster.last_AR_routed_WL+cluster.max_slack/coarse_x_length+2;
+    int hor_edge_num = (coarse_x_size-1)*coarse_y_size;
+    int ver_edge_num = coarse_x_size*(coarse_y_size-1);
+    int RT_edge_num = (coarse_x_size-1)*(coarse_y_size-1);
+    int RB_edge_num = (coarse_x_size-1)*(coarse_y_size-1);
+    int stage1 = hor_edge_num;
+    int stage2 = hor_edge_num+ver_edge_num;
+    int stage3 = hor_edge_num+ver_edge_num+RT_edge_num;
     for (auto it=cluster.net.begin(); it!=cluster.net.end(); it++) {
         printf("%d  ",*it);
     }
      printf("||||||||||||||||\n");
-    // if (c_idx == 3)
+     printf("low_bound_WL:%f upper_bound_WL:%f\n ",low_bound_WL,upper_bound_WL);
+    if (c_idx==4)
+        printf("cluster.max_slack:%d  last_AR_WL:%f ripup_num:%d\n",cluster.max_slack, cluster.last_AR_routed_WL,cluster.ripup_num);
+    // if (c_idx == 12 || c_idx == 14)
     //     printf("break point\n");
-    // if (c_idx==1) {
-        // for (int y=GRmap.at(cluster.start.z).at(0).size()-1; y>=0; y--) {
-        //     printf("%2d",y);
-        //     for (int x=0; x<GRmap.at(cluster.start.z).size(); x++) {
-        //         printf("%3d",GRmap.at(cluster.start.z).at(x).at(y).forbidden_region);
-        //     }
-        //     printf("\n");
-        // }
-        // printf("  ");
-        // for (int x=0; x<GRmap.at(cluster.start.z).size(); x++) {
-        //     printf("%3d",x);
-        // }
-        // printf("\n");
-    // }
+    if (check_idx==c_idx) {
+        for (int y=GRmap.at(cluster.start.z).at(0).size()-1; y>=0; y--) {
+            printf("%2d",y);
+            for (int x=0; x<GRmap.at(cluster.start.z).size(); x++) {
+                printf("%3d",GRmap.at(cluster.start.z).at(x).at(y).forbidden_region);
+            }
+            printf("\n");
+        }
+        printf("  ");
+        for (int x=0; x<GRmap.at(cluster.start.z).size(); x++) {
+            printf("%3d",x);
+        }
+        printf("\n");
+    }
     double c0;
     vector<vector<vector<Cell>>>* tmp;
     Coor start, end;
     Coor diagonal_coor;
     int x_length, y_length;
-    double min_cost = 1e8;
+    // double min_cost = 1e8;
     // double esti_demand = g_net.esti_demand;
     double esti_demand = 0;
-    Path_node best_pn(expected_length);
-    Path_node pn(expected_length); 
-    std::vector<std::vector<std::vector<Cell>>>* map=&GRmap;    
-    auto cmp = [](const Path_node p1, const Path_node p2) {
-        return abs(p1.expected_length-p1.esti_routing_length-p1.AR_routed_wirelength) > abs(p2.expected_length-p2.esti_routing_length-p2.AR_routed_wirelength);
-    };
-    priority_queue<Path_node,vector<Path_node>,decltype(cmp)> PQ(cmp);
+    Path_node best_pn;  best_pn.esti_routing_length = 100;
+    Path_node pn; 
+    std::vector<std::vector<std::vector<Cell>>>* map=&GRmap;
+    priority_queue<Path_node,vector<Path_node>,compare> PQ;
     if (coarse) {
         start = cluster.start;
         end   = cluster.end;
@@ -1967,6 +1982,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         x_length = fine_x_length;
         y_length = fine_y_length;
     }
+    printf("start:(%d,%d,%d)  end:(%d,%d,%d)\n",start.x,start.y,start.z, end.x,end.y,end.z);
     // if (start.z == 2 && *cluster.net.begin()==34)
     //     printf("BOTTOM layer\n");
     pn.path.push_back(start);
@@ -1974,29 +1990,22 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
     pn.cost = 0;
     // if (c_idx==0)
     //     printf("start coor:(%d,%d,%d)  end coor:(%d,%d,%d)\n",start.x,start.y, start.z,end.x,end.y,end.z);
-    c0 = pn.esti_routing_length*0.5;
+    // c0 = pn.esti_routing_length*0.5;
     PQ.push(pn);
     int idx(0);
     while (!PQ.empty()) {
         if (idx%10000==0)
-            printf("LMaware_Astar loop:%d\n",idx);
+            printf("Astar loop:%d\n",idx);
             
-        // auto cmp = [](const Path_node p1, const Path_node p2) {
-        //     return p1.expected_length-p1.esti_routing_length < p2->expected_length-p2.esti_routing_length;
-        // };
-        // priority_queue<Path_node,vector<Path_node>,decltype(cmp)> temp_PQ = PQ;
+        // priority_queue<Path_node,vector<Path_node>,compare> temp_PQ = PQ;
         // int count(0);
-        // // // if (c_idx==3) {
+        // if (check_idx==0) {
         //     while (!temp_PQ.empty()) {
         //         Path_node temp_top_pn=temp_PQ.top();  temp_PQ.pop();
-        //         printf("expected_length:%f - esti_routing_length:%f - AR_routed_wirelength:%f = %f\n",temp_top_pn.expected_length,
-        //                                                                    temp_top_pn.esti_routing_length,
-        //                                                                    temp_top_pn.AR_routed_wirelength,
-        //                                                                    temp_top_pn.expected_length-temp_top_pn.esti_routing_length-temp_top_pn.AR_routed_wirelength);
-        //         // printf("%d. path cost: %f  ",count,temp_top_pn.cost);
-        //         // printf("routed_WL:%f + cost:%f + ERL:%f = %f\n",
-        //         //     temp_top_pn.AR_routed_wirelength,temp_top_pn.cost,temp_top_pn.esti_routing_length,
-        //         //                             temp_top_pn.AR_routed_wirelength+temp_top_pn.cost+temp_top_pn.esti_routing_length);
+        //         printf("%d. path cost: %f  ",count,temp_top_pn.cost);
+        //         printf("routed_WL:%f + cost:%f + ERL:%f = %f\n",
+        //             temp_top_pn.AR_routed_wirelength,temp_top_pn.cost,temp_top_pn.esti_routing_length,
+        //                                     temp_top_pn.AR_routed_wirelength+temp_top_pn.cost+temp_top_pn.esti_routing_length);
         //         for (auto coor=temp_top_pn.path.begin(); coor!=temp_top_pn.path.end(); coor++) {
         //             printf("(%d,%d,%d)->",coor->x, coor->y,coor->z);
         //         }
@@ -2004,7 +2013,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         //         count++;
         //     }   
         //         printf("\n");         
-        // // }
+        // }
 
         // bool break_tag(false);
         // while (!PQ.empty()) {
@@ -2016,48 +2025,82 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         // system("pause");
         // if (break_tag)
         //     break;
-        // if (c_idx==3) {
-        //     // printf("TOP coor: (%d,%d,%d)  \n",top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z);
-        //     // printf("TOP coor: (%d,%d,%d)  \n",top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z);
-        //     printf("path cost: %f  ",top_pn.cost);
-        //     printf("top_pn coor: (%d,%d,%d) routed_WL:%f cost:%f + ERL:%f = %f\n",
-        //     top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z,
-        //     top_pn.AR_routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
-        //                             top_pn.cost+top_pn.esti_routing_length);
-        // }
         Path_node top_pn=PQ.top();  PQ.pop();
-        // printf("top path node: \npath: ");
-        // for (auto coor=top_pn.path.begin(); coor!=top_pn.path.end(); coor++) {
-        //     printf("(%d,%d)->",coor->x,coor->y);
-        // }
-        // printf("END\n");
-        if ( (top_pn.cost+abs(top_pn.AR_routed_wirelength+top_pn.esti_routing_length-top_pn.expected_length)) > 
-             (best_pn.cost+abs(best_pn.AR_routed_wirelength+best_pn.esti_routing_length-best_pn.expected_length)) ) {
+        if (check_idx==c_idx) {
+            // printf("TOP coor: (%d,%d,%d)  \n",top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z);
+            // printf("TOP coor: (%d,%d,%d)  \n",top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z);
+            printf("path cost: %f  ",top_pn.cost);
+            printf("top_pn coor: (%d,%d,%d) routed_WL:%f + cost:%f + ERL:%f = %f\n",
+            top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z,
+            top_pn.AR_routed_wirelength,top_pn.cost,top_pn.esti_routing_length,
+                                    top_pn.AR_routed_wirelength+top_pn.cost+top_pn.esti_routing_length);
+            for (auto coor=top_pn.path.begin(); coor!=top_pn.path.end(); coor++) {
+                printf("(%d,%d,%d)->",coor->x, coor->y,coor->z);
+            }
+            printf("END\n");
+        }
+
+        if ( (top_pn.cost+top_pn.esti_routing_length+top_pn.AR_routed_wirelength) > 
+             (best_pn.cost+best_pn.AR_routed_wirelength) ) {
                  if (best_pn.esti_routing_length!=0)
                   cout<<"best pn esti wrong\n";
             break;
         }
-        if (idx>150000 && best_pn.esti_routing_length==0) {
-            printf("LMaware_Astar no solution\n");
+        if (idx>250000) { //&& best_pn.esti_routing_length==0
+            printf("Astar no solution(or q.size too much)\n");
             break;
+        }
+        set<Coor> forbidden_coor;
+        if (top_pn.path.size()>=2) {
+            Coor last_coor=top_pn.path.at(top_pn.path.size()-2);
+            Coor cur_coor=top_pn.path.back();
+            int x_diff = cur_coor.x-last_coor.x;
+            int y_diff = cur_coor.y-last_coor.y;
+            if (x_diff==0) {
+                f(i,-1,1)
+                    forbidden_coor.insert(Coor(cur_coor.z,cur_coor.x+i, last_coor.y));
+            }
+            else if (y_diff==0) {
+                f(j,-1,1)
+                    forbidden_coor.insert(Coor(cur_coor.z,last_coor.x, last_coor.y+j));
+            }
+            else {
+                // if (x_diff*y_diff==1) {
+                // }
+                // else if (x_diff*y_diff==-1){
+
+                // }
+                f(i,-1,1)
+                    forbidden_coor.insert(Coor(cur_coor.z,cur_coor.x+i, last_coor.y));
+                f(j,-1,1)
+                    forbidden_coor.insert(Coor(cur_coor.z,last_coor.x, cur_coor.y+j));
+            }
         }
         f (i,-1,1) {
             f (j,-1,1) {
-                Path_node temp_pn(expected_length);
-                double cost;
-                double wl;
+                Path_node temp_pn;
+                double cost(0);
+                double wl(0);
                 temp_pn=top_pn;
                 Coor coor=top_pn.path.back();
                 coor.setup(coor.z,coor.x+i,coor.y+j);
-                // if (c_idx==0)
+                int edge_idx;
+                // if (c_idx==check_idx)
                 //     printf("search region:(%d,%d,%d)\n",coor.x,coor.y,coor.z);
                 if (out_of_bdy(coor,diagonal_coor))
                     continue;  
-                if (map->at(coor.z).at(coor.x).at(coor.y).forbidden_region) {
-                    // if (c_idx==0)
+                if (map->at(coor.z).at(coor.x).at(coor.y).forbidden_region || forbidden_coor.find(coor)!=forbidden_coor.end()) {
+                    // if (c_idx==check_idx)
                     //     printf("forbidden\n");
                     continue; 
-                }        
+                }    
+                bool crossing(false);
+                for (auto pn_coor=temp_pn.path.begin(); pn_coor!=temp_pn.path.end(); pn_coor++){
+                    if (*pn_coor==coor)
+                        crossing = true;
+                }  
+                if (crossing)
+                    continue;
                 temp_pn.path.push_back(coor);
                 temp_pn.esti_routing_length = min(abs(end.x-coor.x), abs(end.y-coor.y))*1.4+(max(abs(end.x-coor.x), abs(end.y-coor.y))-min(abs(end.x-coor.x), abs(end.y-coor.y)));
                 if (i==0) {
@@ -2065,19 +2108,33 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                     if (j==0)   
                         continue;
                     else if (j==1) {
+                        edge_idx = stage1+coor.x+(coor.y-1)*coarse_x_size;
+                        if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                            continue;
                         double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[BOT];
-                        if (r<cluster.demand_val)
+                        if (r<cluster.demand_val) {
+                            if (c_idx==check_idx) {
+                                printf("(%d,%d,%d)TOP demand short\n",coor.x,coor.y, coor.z);
+                            }
                             continue;   
+                        }
                         cost=1.0/(1+exp(r));
                     }
                     else {
+                        edge_idx = stage1+coor.x+(coor.y)*coarse_x_size;
+                        if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                            continue;
                         double r=map->at(coor.z).at(coor.x).at(coor.y).edge_r[TOP];
                         
-                        if (c_idx==0 && r<cluster.demand_val) {
-                            printf("r:%f  cluster.demand_val:%f\n", r, cluster.demand_val);
-                        }
-                        if (r<cluster.demand_val)
+                        // if (c_idx==0 && r<cluster.demand_val) {
+                        //     printf("r:%f  cluster.demand_val:%f\n", r, cluster.demand_val);
+                        // }
+                        if (r<cluster.demand_val) {
+                            if (c_idx==check_idx) {
+                                printf("(%d,%d,%d)BOT demand short\n",coor.x,coor.y, coor.z);
+                            }
                             continue;   
+                        }
                         cost=1.0/(1+exp(r));
                     }
 
@@ -2086,18 +2143,32 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                 else if (j==0) {
                     wl=1.0;
                     if (i==1) {
-                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
-                        if (c_idx==0 && r<cluster.demand_val) {
-                            printf("r:%f  cluster.demand_val:%f\n", r, cluster.demand_val);
-                        }
-                        if (r<cluster.demand_val)
+                        edge_idx = coor.x-1+coor.y*(coarse_x_size-1);
+                        if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
                             continue;
+                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
+                        // if (c_idx==0 && r<cluster.demand_val) {
+                        //     printf("r:%f  cluster.demand_val:%f\n", r, cluster.demand_val);
+                        // }
+                        if (r<cluster.demand_val) {
+                            if (c_idx==check_idx) {
+                                printf("(%d,%d,%d)RIGHT demand short\n",coor.x,coor.y, coor.z);
+                            }
+                            continue;
+                        }
                         cost=1.0/(1+exp(r));
                     }
                     else {
-                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
-                        if (r<cluster.demand_val)
+                        edge_idx = coor.x+coor.y*(coarse_x_size-1);
+                        if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
                             continue;
+                        double r = map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
+                        if (r<cluster.demand_val) {
+                            if (c_idx==check_idx) {
+                                printf("(%d,%d,%d)LEFT demand short\n",coor.x,coor.y, coor.z);
+                            }
+                            continue;
+                        }
                         cost=1.0/(1+exp(r));
                     }
                 }
@@ -2106,6 +2177,9 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                     wl=1.4;
                     if (i*j==-1) {//BR or TL
                         if (i==-1) {//TL
+                            edge_idx = stage3+coor.x+(coor.y-1)*(coarse_x_size-1);
+                            if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                                continue;
                             double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[LEFT];
                             double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP];
                             double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[RIGHT];
@@ -2114,11 +2188,18 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
                             double min_yr = min(yr,next_yr);
-                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val)
+                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val) {
+                                if (c_idx==check_idx) {
+                                    printf("LT(%d,%d,%d) min_xr:%f  min_yr:%d\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
+                                }
                                 continue;
+                            }
                             cost = x_cost+y_cost;
                         }
                         else {//BR
+                            edge_idx = stage3+coor.x-1+(coor.y)*(coarse_x_size-1);
+                            if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                                continue;
                             double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT];
                             double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[BOT];
                             double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
@@ -2127,13 +2208,20 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
                             double min_yr = min(yr,next_yr);
-                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val)
+                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val) {
+                                if (c_idx==check_idx) {
+                                    printf("RB(%d,%d,%d) min_xr:%f  min_yr:%f\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
+                                }
                                 continue;
+                            }
                             cost = (x_cost+y_cost)/2.0;
                         }
                     }
                     else {
-                        if (i==-1) {
+                        if (i==-1) {//LB
+                            edge_idx = stage2+coor.x+(coor.y)*(coarse_x_size-1);
+                            if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                                continue;
                             // int z=map->size();
                             // int x=map->at(0).size();
                             // int y=map->at(0).at(0).size();
@@ -2149,11 +2237,19 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                             double min_xr = min(xr,next_xr);
                             double min_yr = min(yr,next_yr);
                             // printf("min_xr: %f  min_yr: %f  demand value:%f\n",min_xr,min_yr,cluster.demand_val);
-                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val)
+                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val) {
+                                if (c_idx==check_idx) {
+                                    printf("LB(%d,%d,%d) min_xr:%f  min_yr:%d\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
+                                    printf("xr:%f, yr:%f, next_xr:%f, next_yr:%f\n",xr,yr,next_xr,next_yr);
+                                }
                                 continue;
+                            }
                             cost = (x_cost+y_cost)/2.0;
                         }
-                        else {
+                        else {//RT
+                            edge_idx = stage2+coor.x-1+(coor.y-1)*(coarse_x_size-1);
+                            if (cluster.fbd_edge.find(edge_idx)!=cluster.fbd_edge.end())
+                                continue;
                             double xr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[RIGHT];
                             double yr=map->at(coor.z).at(coor.x-i).at(coor.y-j).edge_r[TOP];
                             double next_xr=map->at(coor.z).at(coor.x).at(coor.y).edge_r[LEFT];
@@ -2162,8 +2258,12 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                             double y_cost = 1.0/(1+exp(yr))+1.0/(1+exp(next_yr));
                             double min_xr = min(xr,next_xr);
                             double min_yr = min(yr,next_yr);
-                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val)
+                            if (min_xr<cluster.demand_val || min_yr<cluster.demand_val){
+                                if (c_idx==check_idx) {
+                                    printf("RT(%d,%d,%d) min_xr:%f  min_yr:%d\n",coor.x-i,coor.y-j,coor.z,min_xr,min_yr);
+                                }
                                 continue;
+                            }
                             cost = x_cost+y_cost;
                         }
                     }
@@ -2173,11 +2273,39 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                 temp_pn.AR_routed_wirelength +=wl;
                 // if (c_idx==3)
                 //     printf("search region:(%d,%d,%d)\n",coor.x,coor.y,coor.z);
-                if (temp_pn.path.back()==end ) {
-                    if (abs(temp_pn.AR_routed_wirelength-temp_pn.expected_length)+temp_pn.cost < abs(best_pn.AR_routed_wirelength-best_pn.expected_length)+best_pn.cost)
-                        best_pn=temp_pn;
-                    continue;
+                if (temp_pn.path.back()==end && (temp_pn.cost+temp_pn.esti_routing_length+temp_pn.AR_routed_wirelength) < (best_pn.cost+best_pn.AR_routed_wirelength)) {
+                    if (c_idx==check_idx) {
+                        if (best_pn.path.empty()) {
+                            printf("old best path cost: %f  \n",best_pn.cost);
+                        }
+                        else {
+                            printf("old best path cost: %f  ",best_pn.cost);
+                            printf("best_pn coor: (%d,%d,%d) routed_WL:%f + cost:%f + ERL:%f = %f\n",
+                            best_pn.path.back().x,best_pn.path.back().y,best_pn.path.back().z,
+                            best_pn.AR_routed_wirelength,best_pn.cost,best_pn.esti_routing_length,
+                                                    best_pn.AR_routed_wirelength+best_pn.cost+best_pn.esti_routing_length);
+                            for (auto coor=best_pn.path.begin(); coor!=best_pn.path.end(); coor++) {
+                                printf("(%d,%d,%d)->",coor->x, coor->y,coor->z);
+                            }
+                            printf("END\n");
 
+                        }
+
+                        printf("new best path cost: %f  ",temp_pn.cost);
+                        printf("temp_pn coor: (%d,%d,%d) routed_WL:%f + cost:%f + ERL:%f = %f\n",
+                        temp_pn.path.back().x,temp_pn.path.back().y,temp_pn.path.back().z,
+                        temp_pn.AR_routed_wirelength,temp_pn.cost,temp_pn.esti_routing_length,
+                                                temp_pn.AR_routed_wirelength+temp_pn.cost+temp_pn.esti_routing_length);
+                        for (auto coor=temp_pn.path.begin(); coor!=temp_pn.path.end(); coor++) {
+                            printf("(%d,%d,%d)->",coor->x, coor->y,coor->z);
+                        }
+                        printf("END\n");
+                    }
+                    if (temp_pn.esti_routing_length+temp_pn.AR_routed_wirelength >= low_bound_WL)
+                        best_pn=temp_pn;
+                    else {
+                        // printf("best path too short\n");
+                    }
                     // if (c_idx==3) {
                     //     printf("Temp Best Path: path cost: %f  ",best_pn.cost);
                     //     printf("routed_WL:%f + cost:%f + ERL:%f = %f\n",
@@ -2191,25 +2319,20 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
 
 
                     // min_cost = temp_pn.cost;
+                    continue;
                 } 
                 // if (c_idx==0) 
                 //     printf("(%d,%d,%d) ",temp_pn.path.back().x,temp_pn.path.back().y,temp_pn.path.back().z);
-                if (abs(temp_pn.expected_length -temp_pn.AR_routed_wirelength - temp_pn.esti_routing_length) <= 
-                    abs(best_pn.expected_length -best_pn.AR_routed_wirelength - best_pn.esti_routing_length))
+                if (temp_pn.esti_routing_length+temp_pn.AR_routed_wirelength <= upper_bound_WL)
                     PQ.push(temp_pn);
+                else if (c_idx==check_idx) {
+                    printf("(%d,%d,%d) esti_routing_length:%f+AR_routed_wirelength:%f >= upper bound_WL:%f \n",
+                                        coor.x,coor.y,coor.z,temp_pn.esti_routing_length,temp_pn.AR_routed_wirelength,
+                                        upper_bound_WL);
+                    printf("                                                   or <= lower bound_WL:%f\n", low_bound_WL);
+                }
             }
         }
-        // if (c_idx==0) 
-        //     printf("\n");
-        // if (idx==2) {
-        //     while (!PQ.empty())
-        //     {
-        //         top_pn = PQ.top(); PQ.pop();
-        //         Path_node temp_pn=top_pn;
-        //         printf("test top_pn coor: (%d,%d,%d) cost:%f + ERL:%f = %f \n",top_pn.path.back().x,top_pn.path.back().y,top_pn.path.back().z,top_pn.cost,top_pn.esti_routing_length,top_pn.cost+top_pn.esti_routing_length);
-        //     } 
-        // }
-        // printf("\n");
         idx++;
     }
     printf("best path: ");
@@ -2217,7 +2340,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         // map->at(it->z).at(it->x).at(it->y).edge_temp_demand;
         printf("(%d,%d,%d)->", it->x,it->y,it->z);
     }
-    printf("end\n cost:%f, wire length:%f expected WL:%f \n",best_pn.cost, best_pn.AR_routed_wirelength, best_pn.expected_length);
+    printf("end\n cost:%f, wire length:%f\n",best_pn.cost, best_pn.AR_routed_wirelength);;
     //update resource
     for (auto it=best_pn.path.begin(); it!=best_pn.path.end(); it++) {
         auto next_it=it;    next_it++;
@@ -2367,7 +2490,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
             
 
     }
-    printf("||||||||||||||||LMaware_Astar(%d) END||||||||||||||||\n\n", cluster.cluster_relative_idx);
+    printf("||||||||||||||||LMaware_Astar(%d) END||||||||||||||||\n\n ", cluster.cluster_relative_idx);
     
     return best_pn;
 }
@@ -2375,44 +2498,57 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
 /**/void GR::Global_routing(vector<int>& GR_net) {
     printf("Global routing \n");
     cluster_relative_position.resize(can_use_layer_num);
-    map<Coor,vector<int>> cpuFO_net;
-    classfy_cluster_relative_position(GR_net,GR_unit);
-    vector<Group_net> group_net;
-    for (auto nid=GR_net.begin(); nid!=GR_net.end(); nid++) {
-        // if (g!=merged_group.begin())
-        //     break;
-        Group_net gn;
-        // printf("nid : %d\n",*nid);
-        // if (*nid==46)
-        //     printf("break point\n");
-        Pin* cpu_p=get_cpupin(net_list.at(*nid));
-        if (cpu_p->ER_coarse_cell.empty())
-            printf("ER coarse cell ini fail!!\n");
-        Coor coor=cpu_p->ER_coarse_cell.back();
-        cpuFO_net[coor].push_back(*nid);
-
-    }        
+    map<Coor,vector<int>> cpuFO_net;   
     for (auto nid=GR_net.begin(); nid!=GR_net.end(); nid++) {
         net_list.at(*nid).update_wirelength(pin_list);
         // net_list.at(*nid).initialize(net_list);
     }
+    classfy_cluster_relative_position(GR_net,GR_unit);
+    for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
+        for (auto cluster=l->begin(); cluster!=l->end(); cluster++) {
+            int x_dist = abs(cluster->start.x-cluster->end.x);
+            int y_dist = abs(cluster->start.y-cluster->end.y);
+            cluster->AR_routed_wirelength = min(x_dist,y_dist)*sqrt(2)+max(x_dist,y_dist)-min(x_dist,y_dist);
+            cluster->last_AR_routed_WL = cluster->AR_routed_wirelength;
+        }
+    }
+    update_total_wl();
+    update_GR_unit();
+    // for (auto nid=GR_net.begin(); nid!=GR_net.end(); nid++) {
+    //     // if (g!=merged_group.begin())
+    //     //     break;
+    //     Group_net gn;
+    //     // printf("nid : %d\n",*nid);
+    //     // if (*nid==46)
+    //     //     printf("break point\n");
+    //     Pin* cpu_p=get_cpupin(net_list.at(*nid));
+    //     if (cpu_p->ER_coarse_cell.empty())
+    //         printf("ER coarse cell ini fail!!\n");
+    //     Coor coor=cpu_p->ER_coarse_cell.back();
+    //     cpuFO_net[coor].push_back(*nid);
+
+    // }     
     int layer(0);
-    //update_GR_unit();
     auto cmp = [](const Cluster* c1, const Cluster* c2) {
         // return std::min(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y))*sqrt(2) + (std::max(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y))-std::min(abs(c1->start.x-c1->end.x),abs(c1->start.y-c1->end.y)))<std::min(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y))*sqrt(2) + (std::max(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y))-std::min(abs(c2->start.x-c2->end.x),abs(c2->start.y-c2->end.y)));
-        return c1->demand_val < c2->demand_val;
-    };
+        if (c1->route_order > c2->route_order)
+            return true;
+        else if(c1->route_order == c2->route_order)
+            return c1->demand_val < c2->demand_val;
+        return false;
+    };    
+    printf("before Astar layer:0 cluster:4 last ARWL:%f\n",GR_unit.at(0).at(4).last_AR_routed_WL);
     for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
         // priority_queue<Cluster> QC;
         priority_queue<Cluster*,vector<Cluster*>,decltype(cmp)> QC(cmp);
-        printf("layer:%d #cluster:%d\n",layer,GR_unit.at(layer).size());
+        printf("layer:%d #cluster:%d \n",layer,GR_unit.at(layer).size());
         for(auto cluster=l->begin(); cluster!=l->end(); cluster++) {
             QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
         }
-        int Astar_num(0);
+        int Astar_num(1);
         while (!QC.empty()) {
             auto cluster=QC.top(); QC.pop();
-            
+            printf("layer:%d cluster:%d route order:%d\n",layer,cluster->cluster_relative_idx, cluster->route_order);
             add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
             add_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
             Path_node pn=Astar(coarse_GRcell,*l, *cluster, true);
@@ -2422,49 +2558,107 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
             remove_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
             if (!pn.path.empty()) {
                 update_forbidden_region(coarse_GRcell,*cluster,true);
+                update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
                 cluster->route_order = Astar_num;
             }
             else { //rip up
-                printf("1. rip up layer:%d cluster idx:%d \n",layer, cluster->cluster_relative_idx);
+                // printf("1. rip up layer:%d cluster idx:%d \n",layer, cluster->cluster_relative_idx);
                 // ??? ripup_cluster(true, cluster->cluster_relative_idx,GR_unit.at(layer),true);
                 // if (cluster->CCW_idx==cluster->CW_idx && cluster->CCW_idx == -1)
                 //     return;
-                QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
-                printf("CCW:%d  CW:%d \n",cluster->CCW_idx,cluster->CW_idx);
-                if (cluster->CCW_idx!=-1 && cluster->CW_idx!=-1 ) {
-                    if (GR_unit.at(layer).at(cluster->CCW_idx).route_order < GR_unit.at(layer).at(cluster->CW_idx).route_order) {
-                        if (GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
-                            printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
-                            ripup_cluster(true, cluster->CCW_idx,GR_unit.at(layer),true);
-                            QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
+                bool ripup_side(false);//0:CW 1:CCW
+                int count(0);
+                // QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
+                while (cluster->path.empty()) {
+                    printf("count:%d fail cluster:%d reroute loop\n",count,cluster->cluster_relative_idx);
+                    printf("CCW:%d  CW:%d \n",cluster->CCW_idx,cluster->CW_idx);
+                    if (cluster->CCW_idx!=-1 && cluster->CW_idx!=-1 ) {
+                        if (ripup_side) {
+                        // if (GR_unit.at(layer).at(cluster->CCW_idx).route_order < GR_unit.at(layer).at(cluster->CW_idx).route_order) {
+                            // if (GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
+                                printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
+                                ripup_cluster(false, cluster->CCW_idx,GR_unit.at(layer),true);
+                                GR_unit.at(layer).at(cluster->CCW_idx).route_order = Astar_num;
+                                QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
+                            // }
                         }
+                        else {
+                            // if (GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
+                                printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
+                                ripup_cluster(false, cluster->CW_idx,GR_unit.at(layer),true);
+                                GR_unit.at(layer).at(cluster->CW_idx).route_order = Astar_num;
+                                QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
+                            // }
+                        }
+                    }
+                    else if (cluster->CW_idx!=-1) {
+                        // if ( GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
+                            printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
+                            ripup_cluster(false, cluster->CW_idx,GR_unit.at(layer),true);
+                            GR_unit.at(layer).at(cluster->CW_idx).route_order = Astar_num;
+                            QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
+
+                        // }
+                    }
+                    else if (cluster->CCW_idx!=-1) {
+                        // if (GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
+                            printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
+                            ripup_cluster(false, cluster->CCW_idx,GR_unit.at(layer),true);
+                            GR_unit.at(layer).at(cluster->CCW_idx).route_order = Astar_num;
+                            QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
+                        // }
                     }
                     else {
-                        if (GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
-                            printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
-                            ripup_cluster(true, cluster->CW_idx,GR_unit.at(layer),true);
-                            QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
+                        printf("Astar ripup&reroute wrong...\n");
+                        return;
+                    }
+                    {
+                        add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                        add_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
+                        // int old_max_slack=cluster->max_slack;
+                        // printf("layer:%d reroute c:%d max slack:%d order:%d\n",layer,cluster->cluster_relative_idx, cluster->max_slack, cluster->route_order);
+                        // if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                        //     printf("coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                        //     return;
+                        // }
+                        Path_node pn=Astar(coarse_GRcell,GR_unit.at(layer), *cluster, true);
+                        // if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                        //     printf("After LMaware_Astar coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                        //     return;
+                        // }
+                        cluster->path = pn.path;    
+                        cluster->cost = pn.cost;
+                        cluster->AR_routed_wirelength = pn.AR_routed_wirelength;
+                        
+                        remove_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
+                        remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                        if (!pn.path.empty()) {
+                            cluster->max_slack -= (cluster->AR_routed_wirelength-cluster->last_AR_routed_WL)*coarse_x_length;
+                            update_forbidden_region(coarse_GRcell,*cluster,true);
+                            update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
+                            cluster->route_order = Astar_num;
                         }
                     }
+                    ripup_side = rand()%2;
+                    count++;
+                    printf("fail cluster:%d reroute loop END\n",cluster->cluster_relative_idx);
+                    if(count>10)
+                        break;
+                    // printf("rip up end\n");                    
                 }
-                else if (cluster->CW_idx!=-1 && GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
-                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
-                    ripup_cluster(true, cluster->CW_idx,GR_unit.at(layer),true);
-                    QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
-                }
-                else if (cluster->CCW_idx!=-1 && GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
-                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
-                    ripup_cluster(true, cluster->CCW_idx,GR_unit.at(layer),true);
-                    QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
-                }
-                printf("rip up end\n");
+
+
             }
             // printf("(0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
             // printf("\n");
             Astar_num++;
             printf("Astar_num:%d  layer:%d\n\n",Astar_num,layer);
-            if(Astar_num>30 )
+            if(Astar_num>500 )
                 break;
+        }
+        while(!QC.empty()){
+            Cluster* cluster=QC.top();     QC.pop();
+            printf("Astar layer:%d routing fail cluster:%d\n",layer,cluster->cluster_relative_idx);
         }
 
 
@@ -2483,6 +2677,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
     }
     /**/
     layer=0;
+    printf("Before Astar improve layer:0 cluster:4 last ARWL:%f\n",GR_unit.at(0).at(4).last_AR_routed_WL);
     for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
         int Astar_num(0);
         printf("layer:%d #cluster:%d\n",layer,GR_unit.at(layer).size());
@@ -2496,10 +2691,12 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
             ripup_cluster(false, cluster->cluster_relative_idx,GR_unit.at(layer),true);
             add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
             Path_node pn=Astar(coarse_GRcell,*l, *cluster, true);
-            cluster->path = pn.path;
+            cluster->path = pn.path;    cluster->AR_routed_wirelength = pn.AR_routed_wirelength;
+            cluster->cost = pn.cost;
             remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
             if (!pn.path.empty()) {
                 update_forbidden_region(coarse_GRcell,*cluster,true);
+                update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
                 if (pn.cost+pn.AR_routed_wirelength < total_cost*0.95) {
                     Q.push(cluster);
                 }
@@ -2509,7 +2706,11 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                 printf("reroute fail...\n");
             }
             Astar_num++;
-            if (Astar_num>30)
+            // if (coarse_GRcell.at(0).at(13).at(7).edge_r[RIGHT]<0) {
+            //     printf("coarse_GRcell.at(0).at(13).at(7).edge_r resource wrong!!!!!!!!!!\n");
+            //     return;
+            // }
+            if (Astar_num>70)
                 break;
 
         }
@@ -2534,70 +2735,218 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
 
 
 
+    printf("After Astar improve layer:0 cluster:4 last ARWL:%f\n",GR_unit.at(0).at(4).last_AR_routed_WL);
     update_total_wl();
     AR_RSRC_allocate(file_name);
-
-    /*auto slack_pri = [](const Cluster* c1, const Cluster* c2) {
-        return c1->max_slack < c2->max_slack;
+    if (!RSRC_allocate_fail()) {
+        printf("All cluster have enough resource, Global_routing END\n");
+        return;
+    }
+    printf("Before LM_Astar improve layer:0 cluster:4 last ARWL:%f\n",GR_unit.at(0).at(4).last_AR_routed_WL);
+    // return;
+    //待改 要考慮失敗的丟回來
+    auto slack_pri = [](const Cluster* c1, const Cluster* c2) {//max slack first
+        if (c1->route_order > c2->route_order)
+            return true;
+        else if (c1->route_order == c2->route_order)
+            return c1->max_slack < c2->max_slack;
+        return false;
     };
     bool finish(false);
     int round(0);
-    while (round<5 && !finish){
+    while (round<8 && !finish){
         for (layer=0; layer<can_use_layer_num; layer++) {
             priority_queue<Cluster*,vector<Cluster*>,decltype(slack_pri)> QC(slack_pri);
-            printf("slack priority queue layer:%d\n",layer);
-            for (auto c_idx=ripuped_cluster.at(layer).begin(); c_idx!=ripuped_cluster.at(layer).end(); c_idx++) {
-                // if (GR_unit.at(layer).at(c_idx).max_slack > 2*slack_tol) {
-                // printf("GR_unit.at(%d).at(%d).max_slack:%d\n", layer, c_idx, GR_unit.at(layer).at(c_idx).max_slack);
-                    ripup_cluster(*c_idx,GR_unit.at(layer),true);
-                    QC.push(&GR_unit.at(layer).at(*c_idx));
-                // }
+            printf("round:%d slack priority queue layer:%d\n",round, layer);
+            // for (auto c_idx=ripuped_cluster.at(layer).begin(); c_idx!=ripuped_cluster.at(layer).end(); c_idx++) {
+            if (round==0) {
+                for (auto cluster=GR_unit.at(layer).begin(); cluster!=GR_unit.at(layer).end(); cluster++){
+                    // if (GR_unit.at(layer).at(c_idx).max_slack > 2*slack_tol) {
+                    // printf("GR_unit.at(%d).at(%d).max_slack:%d\n", layer, c_idx, GR_unit.at(layer).at(c_idx).max_slack);
+                        int c_idx=cluster->cluster_relative_idx;
+                        ripup_cluster(false,c_idx,GR_unit.at(layer),true);
+                        GR_unit.at(layer).at(c_idx).route_order = 0;
+                        QC.push(&GR_unit.at(layer).at(c_idx));
+                    // }
+                }                
             }
+            else {
+                for (auto ripup_cidx=ripuped_cluster.at(layer).begin(); ripup_cidx!=ripuped_cluster.at(layer).end(); ripup_cidx++) {
+                    ripup_cluster(false,*ripup_cidx,GR_unit.at(layer),true);
+                        GR_unit.at(layer).at(*ripup_cidx).route_order = 0;
+                    QC.push(&GR_unit.at(layer).at(*ripup_cidx));
+                }
+            }
+
+            // if (coarse_GRcell.at(0).at(5).at(16).edge_r[RIGHT]<2) {
+            //     printf("coarse_GRcell.at(0).at(5).at(16).edge_r resource wrong!!!!!!!!!!\n");
+            //     return;
+            // }
+            int Astar_num(1);
             while(!QC.empty()) {
                 Cluster* cluster=QC.top();     QC.pop();
-                if (layer == 2 && cluster->start.z==2)
-                    continue;
+                // if (layer == 2 && cluster->start.z==2)
+                //     continue;
                 // if (cluster->max_slack < 2*coarse_x_length)
                 //     break;
                 add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
                 add_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
-                printf("layer:%d reroute c:%d max slack:%d\n",layer,cluster->cluster_relative_idx, cluster->max_slack);
-                Path_node pn=Astar(coarse_GRcell,GR_unit.at(layer), *cluster, true);
-                remove_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
-                cluster->path = pn.path;
-                remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
-                if (!pn.path.empty())
-                    update_forbidden_region(coarse_GRcell,*cluster,true);
-                else { //rip up
-                    printf("1. rip up layer:%d cluster idx:%d \n",layer, cluster->cluster_relative_idx);
-                    ripup_cluster(cluster->cluster_relative_idx,GR_unit.at(layer),true);
-                    printf("CCW:%d  CW:%d \n",cluster->CCW_idx,cluster->CW_idx);
-                    QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
-                    if (cluster->CCW_idx!=-1 && GR_unit.at(layer).at(cluster->CCW_idx).route_order < GR_unit.at(layer).at(cluster->CW_idx).route_order) {
-                        
-                        printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
-                        ripup_cluster(cluster->CCW_idx,GR_unit.at(layer),true);
-                        QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
-                    }
-                    else if (cluster->CW_idx!=-1) {
-                        printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
-                        ripup_cluster(cluster->CW_idx,GR_unit.at(layer),true);
-                        QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
-                    }
-                    printf("rip up end\n");
+                int old_max_slack=cluster->max_slack;
+                printf("layer:%d reroute c:%d max slack:%d order:%d\n",layer,cluster->cluster_relative_idx, cluster->max_slack, cluster->route_order);
+                // if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                //     printf("coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                //     return;
+                // }
+                Path_node pn=LMaware_Astar(coarse_GRcell,GR_unit.at(layer), *cluster, true);
+                if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                    printf("After LMaware_Astar coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                    return;
                 }
-                printf("\n=>layer:%d reroute c:%d max slack:%d\n\n",layer,cluster->cluster_relative_idx, cluster->max_slack);
+                cluster->path = pn.path;    
+                cluster->cost = pn.cost;
+                cluster->AR_routed_wirelength = pn.AR_routed_wirelength;
+                
+                remove_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
+                remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                if (!pn.path.empty()) {
+                    cluster->max_slack -= (cluster->AR_routed_wirelength-cluster->last_AR_routed_WL)*coarse_x_length;
+                    update_forbidden_region(coarse_GRcell,*cluster,true);
+                    update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
+                    cluster->route_order = Astar_num;
+                }
+                else { //rip up
+                    // printf("1. rip up layer:%d cluster idx:%d \n",layer, cluster->cluster_relative_idx);
+                    // ripup_cluster(false,cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                    // printf("LM Astar fail, cluster->AR_routed_wirelength:%f\n",cluster->AR_routed_wirelength);
+                    bool ripup_side(false);//0:CW 1:CCW
+                    int count(0);
+                    while (cluster->path.empty()) {
+                        printf("count:%d fail cluster:%d reroute loop\n",count,cluster->cluster_relative_idx);
+                        printf("CCW:%d  CW:%d \n",cluster->CCW_idx,cluster->CW_idx);
+                        // QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
+                        if (cluster->CCW_idx!=-1 && cluster->CW_idx!=-1 ) {
+                            if (ripup_side) {
+                            // if (GR_unit.at(layer).at(cluster->CCW_idx).route_order < GR_unit.at(layer).at(cluster->CW_idx).route_order) {
+                                // if (GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
+                                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
+                                    ripup_cluster(false, cluster->CCW_idx,GR_unit.at(layer),true);
+                                    GR_unit.at(layer).at(cluster->CCW_idx).route_order = Astar_num;
+                                    QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
+                                // }
+                            }
+                            else {
+                                // if (GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
+                                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
+                                    ripup_cluster(false, cluster->CW_idx,GR_unit.at(layer),true);
+                                    GR_unit.at(layer).at(cluster->CW_idx).route_order = Astar_num;
+                                    QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
+                                // }
+                            }
+                            printf("CW:%d order:%d  CCW:%d order:%d\n",cluster->CW_idx,GR_unit.at(layer).at(cluster->CW_idx).route_order,cluster->CCW_idx,GR_unit.at(layer).at(cluster->CCW_idx).route_order);
+                        }
+                        else if (cluster->CW_idx!=-1 ) {
+                            // if (GR_unit.at(layer).at(cluster->CW_idx).ripup_num<1) {
+                                printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
+                                ripup_cluster(false, cluster->CW_idx,GR_unit.at(layer),true);
+                                GR_unit.at(layer).at(cluster->CW_idx).route_order = Astar_num;
+                                QC.push(&GR_unit.at(layer).at(cluster->CW_idx));                            
+                            // }
+
+                        }
+                        else if (cluster->CCW_idx!=-1 ) {
+                            // if (GR_unit.at(layer).at(cluster->CCW_idx).ripup_num<1) {
+                                printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
+                                ripup_cluster(false, cluster->CCW_idx,GR_unit.at(layer),true);
+                                GR_unit.at(layer).at(cluster->CCW_idx).route_order = Astar_num;
+                                QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));                            
+                            // }
+                        }
+                        else {
+                            printf("wrong...\n");
+                            return;
+                        }
+                        {
+                            add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                            add_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
+                            int old_max_slack=cluster->max_slack;
+                            printf("layer:%d reroute c:%d max slack:%d order:%d\n",layer,cluster->cluster_relative_idx, cluster->max_slack, cluster->route_order);
+                            // if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                            //     printf("coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                            //     return;
+                            // }
+                            Path_node pn=LMaware_Astar(coarse_GRcell,GR_unit.at(layer), *cluster, true);
+                            // if (coarse_GRcell.at(1).at(6).at(7).edge_r[RIGHT]<0) {
+                            //     printf("After LMaware_Astar coarse_GRcell.at(1).at(6).at(7).edge_r resource wrong!!!!!!!!!!\n");
+                            //     return;
+                            // }
+                            cluster->path = pn.path;    
+                            cluster->cost = pn.cost;
+                            cluster->AR_routed_wirelength = pn.AR_routed_wirelength;
+                            
+                            remove_history_cost(GR_unit.at(layer),cluster->cluster_relative_idx,layer);
+                            remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
+                            if (!pn.path.empty()) {
+                                cluster->max_slack -= (cluster->AR_routed_wirelength-cluster->last_AR_routed_WL)*coarse_x_length;
+                                update_forbidden_region(coarse_GRcell,*cluster,true);
+                                update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
+                                cluster->route_order = Astar_num;
+                            }
+                        }
+                        ripup_side = rand()%2;
+                        count++;
+                        printf("fail cluster:%d reroute loop END\n",cluster->cluster_relative_idx);
+                        if(count>10)
+                            break;
+                    }
+
+                    // printf("rip up end\n");
+                }
+                printf("\n=>layer:%d reroute c:%d max slack:%d -> %d\n\n",layer,cluster->cluster_relative_idx, old_max_slack, cluster->max_slack);
+                printf("Astar_Num:%d\n",Astar_num);
+                Astar_num++;
+                if (cluster->cluster_relative_idx==8) {
+                    printf("coarse_GRcell.at(0).at(5).at(16).edge_r :%f!!!!!!!!!!\n",coarse_GRcell.at(0).at(5).at(16).edge_r[RIGHT]);
+                    // return;
+                }
+                if (Astar_num>5000)
+                    break;
+            }
+            while(!QC.empty()){
+                Cluster* cluster=QC.top();     QC.pop();
+                printf("LMaware layer:%d routing fail cluster:%d\n",layer,cluster->cluster_relative_idx);
             }
                 //這邊要從slack值太大的開始重繞，使用可以貼近slack值的Astar而非最低cost的版本
+            // for (auto c_idx=ripuped_cluster.at(layer).begin(); c_idx!=ripuped_cluster.at(layer).end(); c_idx++) {
+            //     // if (GR_unit.at(layer).at(c_idx).max_slack > 2*slack_tol) {
+            //     // printf("GR_unit.at(%d).at(%d).max_slack:%d\n", layer, c_idx, GR_unit.at(layer).at(c_idx).max_slack);
+            //         ripup_cluster(false,*c_idx,GR_unit.at(layer),true);
+            //         QC.push(&GR_unit.at(layer).at(*c_idx));
+            //     // }
+            // }
+                
         }
+        printf("After reroute:\n");
+        for (int layer=0; layer<can_use_layer_num; layer++) {
+            for (auto cluster=GR_unit.at(layer).begin(); cluster!=GR_unit.at(layer).end(); cluster++) {
+                printf("layer:%d cluster:%d max_slack:%d\n",layer,cluster->cluster_relative_idx,cluster->max_slack);
+            }
+            printf("\n");
+        }
+        // printf("before update_total_wl round:%d layer:1 c:6 max_slack:%d\n",round, GR_unit.at(1).at(6).max_slack);
+        // update_total_wl();
+        // printf("after update_total_wl round:%d layer:1 c:6 max_slack:%d\n",round,GR_unit.at(1).at(6).max_slack);
+        // if (round==1)
+        //     break;
         AR_RSRC_allocate(file_name);
-        finish = RSRC_allocate_fail();
+        finish = !RSRC_allocate_fail();
+        printf("round:%d RSRC_allocate_fail = %d\n",round,!finish);
         round++;
-    }*/
+        // break;
+    }
+    /**/
 
 
     /*
-    update_GR_unit();
     auto slack_pri = [](const Cluster* c1, const Cluster* c2) {
         return c1->max_slack < c2->max_slack;
     };
@@ -2647,28 +2996,28 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
     // return;
     */
 
-    // printf("AR_RSRC_allocate (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
-    // printf("\n");
-    // layer = 0;
-    // for (auto l=ripuped_cluster.begin(); l!=ripuped_cluster.end(); l++) {
-    //     if (l->size()==0)
-    //         continue;
-    //     for (auto c=l->begin(); c!=l->end(); c++){
-    //         if (*c == 10)
-    //             cout<<"break point\n";
-    //         ripup_cluster(*c,GR_unit.at(layer),true);
-    //         add_forbidden_region(*c,GR_unit.at(layer),true);
-    //         Path_node pn=Astar(coarse_GRcell,GR_unit.at(layer), GR_unit.at(layer).at(*c), true);
-    //         GR_unit.at(layer).at(*c).path = pn.path;
-    //         remove_forbidden_region(*c,GR_unit.at(layer),true);
+    /*printf("AR_RSRC_allocate (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
+    printf("\n");
+    layer = 0;
+    for (auto l=ripuped_cluster.begin(); l!=ripuped_cluster.end(); l++) {
+        if (l->size()==0)
+            continue;
+        for (auto c=l->begin(); c!=l->end(); c++){
+            if (*c == 10)
+                cout<<"break point\n";
+            ripup_cluster(*c,GR_unit.at(layer),true);
+            add_forbidden_region(*c,GR_unit.at(layer),true);
+            Path_node pn=Astar(coarse_GRcell,GR_unit.at(layer), GR_unit.at(layer).at(*c), true);
+            GR_unit.at(layer).at(*c).path = pn.path;
+            remove_forbidden_region(*c,GR_unit.at(layer),true);
 
-    //     }
-    //     update_total_wl(layer);
-    //     AR_RSRC_allocate(layer,file_name);
-    //     layer++;
-    // }
-    // printf("Before Global_routing END (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
-    // printf("\n");
+        }
+        update_total_wl(layer);
+        AR_RSRC_allocate(layer,file_name);
+        layer++;
+    }
+    printf("Before Global_routing END (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
+    printf("\n");*/
     printf("Global_routing END\n");
 }
 
@@ -2684,15 +3033,19 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
         }
         Pin* cpu_p=get_cpupin(net_list.at(*nid));
         Pin* ddr_p=get_ddrpin(net_list.at(*nid));
-        printf("net:%d cpu_p->layer:%d\n",*nid, cpu_p->layer);
+        // printf("net:%d cpu_p->layer:%d\n",*nid, cpu_p->layer);
         layer_nets.at(cpu_p->layer).push_back(*nid);
     }
+    
+    printf("classify net by layer END\n");
     int layer(0);
     for (auto l=layer_nets.begin(); l!=layer_nets.end(); l++) {
         map<int,vector<int>> dir_cpu_pin;
+        printf("layer:%d  #net:%d \n",layer,l->size());
         for (auto nid=l->begin(); nid!=l->end(); nid++) {
             Pin* cpu_p=get_cpupin(net_list.at(*nid));
             Pin* ddr_p=get_ddrpin(net_list.at(*nid));
+            // printf("net:%d cpu_p->layer:%d\n",*nid, cpu_p->layer);
             dir_cpu_pin[cpu_p->escape_dir].push_back(cpu_p->net_ID);
         }
         map<Coor,vector<int>,bool (*)(Coor, Coor)> TOP_coor_nets( Coor::greater_x);
@@ -2700,6 +3053,7 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
         map<Coor,vector<int>,bool (*)(Coor, Coor)> RIGHT_coor_nets( Coor::less_y);
         map<Coor,vector<int>,bool (*)(Coor, Coor)> LRFT_coor_nets( Coor::greater_y);
         for (auto nid=dir_cpu_pin[LEFT].begin(); nid!=dir_cpu_pin[LEFT].end();nid++) {
+            printf("case no left CPU\n");
             Pin* cpu_p=get_cpupin(net_list.at(*nid));
             if (cpu_p->ER_coarse_cell.size()==0)
                 printf("net:%d cpu_p is empty\n",cpu_p->net_ID);
@@ -2707,27 +3061,31 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
             LRFT_coor_nets[coor].push_back(*nid);
         }
         for (auto nid=dir_cpu_pin[TOP].begin(); nid!=dir_cpu_pin[TOP].end();nid++) {
+            printf("case no top CPU\n");
             Pin* cpu_p=get_cpupin(net_list.at(*nid));
             if (cpu_p->ER_coarse_cell.size()==0)
                 printf("net:%d cpu_p is empty\n",cpu_p->net_ID);
             Coor coor=cpu_p->ER_coarse_cell.back();
             TOP_coor_nets[coor].push_back(*nid);
         }
+        printf("dir_cpu_pin[RIGHT] size:%d\n",dir_cpu_pin[RIGHT].size());
         for (auto nid=dir_cpu_pin[RIGHT].begin(); nid!=dir_cpu_pin[RIGHT].end();nid++) {
             Pin* cpu_p=get_cpupin(net_list.at(*nid));
+            printf("layer:%d net:%d\n",cpu_p->layer,*nid);
             if (cpu_p->ER_coarse_cell.size()==0)
                 printf("net:%d cpu_p is empty\n",cpu_p->net_ID);
             Coor coor=cpu_p->ER_coarse_cell.back();
             RIGHT_coor_nets[coor].push_back(*nid);
         }
         for (auto nid=dir_cpu_pin[BOT].begin(); nid!=dir_cpu_pin[BOT].end();nid++) {
+            printf("case no bot CPU\n");
             Pin* cpu_p=get_cpupin(net_list.at(*nid));
             if (cpu_p->ER_coarse_cell.size()==0)
                 printf("net:%d cpu_p is empty\n",cpu_p->net_ID);
             Coor coor=cpu_p->ER_coarse_cell.back();
             BOT_coor_nets[coor].push_back(*nid);
         }
-
+        printf("classify net by cpu pin escape dir(L->T->R->B) END\n");
         for (auto coor_nid=LRFT_coor_nets.begin(); coor_nid!=LRFT_coor_nets.end(); coor_nid++) {
             map<Coor,vector<int>,bool (*)(Coor, Coor)> TOP_ddr_coor( Coor::greater_x);
             map<Coor,vector<int>,bool (*)(Coor, Coor)> RIGHT_ddr_coor( Coor::greater_y);
@@ -2854,7 +3212,13 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
             map<Coor,vector<int>,bool (*)(Coor, Coor)> TOP_ddr_coor( Coor::less_x);
             for (auto nid=coor_nid->second.begin(); nid!=coor_nid->second.end(); nid++) {
                 Pin* ddr_p = get_ddrpin(net_list.at(*nid));
+                if (ddr_p->ER_coarse_cell.size()==0) {
+                    printf("net:%d ddr ER cell empty!\n",*nid);
+                    continue;
+                }
                 Coor coor = ddr_p->ER_coarse_cell.back();
+                // if (layer == 1)
+                    printf("net:%d ddr name:%s\n",*nid,ddr_p->ddr_name.c_str());
                 if (ddr_escape.at(ddr_p->ddr_name) == BOT) {
                     BOT_ddr_coor[coor].push_back(*nid);
                 }
@@ -2971,6 +3335,7 @@ void GR::classfy_cluster_relative_position(vector<int>& nets, vector<vector<Clus
                 cluster_relative_position.at(layer).push_back(coor_nets->second);
             }
         }
+        printf("layer:%d cluster relative END\n",layer);
         layer++;
     }
     // printf("test point!!\n");
@@ -3019,12 +3384,13 @@ void GR::update_GR_unit(){
                 if ((*n)->slack_wirelength > temp_max_slack) {
                     if (!c_nets.empty()) {
                         if ((*n)->slack_wirelength-temp_max_slack>0.1*temp_max_slack) {
-                            Cluster temp_c(cluster->ori_c_idx,c_idx, cluster->ripup_num, temp_max_slack, c_nets.size());
+                            //                               cluster->ripup_num
+                            Cluster temp_c(cluster->ori_c_idx,c_idx, 0, temp_max_slack, c_nets.size());
                             temp_c.start = cluster->start;
                             temp_c.end = cluster->end;
                             temp_c.net = c_nets;    c_nets.clear();  
                             temp_c.path = cluster->path;
-                            temp_c.last_AR_routed_WL = last_AR_WL;
+                            temp_c.last_AR_routed_WL = cluster->last_AR_routed_WL;
                             // temp_c.CW_path = cluster->CW_path;
                             // temp_c.CCW_path = cluster->CCW_path;  
                             new_cluster_GR_unit.at(layer).push_back(temp_c);
@@ -3042,12 +3408,13 @@ void GR::update_GR_unit(){
                 }
                 else {
                     if (temp_max_slack-(*n)->slack_wirelength > 0.1*temp_max_slack) {
-                        Cluster temp_c(cluster->ori_c_idx,c_idx,cluster->ripup_num,temp_max_slack, c_nets.size());
+                        //                               cluster->ripup_num
+                        Cluster temp_c(cluster->ori_c_idx,c_idx, 0,temp_max_slack, c_nets.size());
                         temp_c.net = c_nets;    c_nets.clear();
                         temp_c.start = cluster->start;
                         temp_c.end = cluster->end;
                         temp_c.path = cluster->path;
-                        temp_c.last_AR_routed_WL = last_AR_WL;
+                        temp_c.last_AR_routed_WL = cluster->last_AR_routed_WL;
                         // temp_c.CW_path = cluster->CW_path;
                         // temp_c.CCW_path = cluster->CCW_path;
                         c_idx++;  
@@ -3059,12 +3426,13 @@ void GR::update_GR_unit(){
                 }
             }
             if (!c_nets.empty()) {
-                Cluster temp_c(cluster->ori_c_idx,c_idx,cluster->ripup_num,temp_max_slack, c_nets.size());
+                //                               cluster->ripup_num
+                Cluster temp_c(cluster->ori_c_idx,c_idx, 0,temp_max_slack, c_nets.size());
                 temp_c.net = c_nets;    c_nets.clear();
                 temp_c.start = cluster->start;
                 temp_c.end = cluster->end;
                 temp_c.path = cluster->path;
-                temp_c.last_AR_routed_WL = last_AR_WL;
+                temp_c.last_AR_routed_WL = cluster->last_AR_routed_WL;
 
                 // temp_c.CW_path = cluster->CW_path;
                 // temp_c.CCW_path = cluster->CCW_path;
@@ -3083,6 +3451,7 @@ void GR::update_GR_unit(){
             if (cluster->path.size()!=0) {
                 // printf("layer:%d cluster:%d first net:%d update_forbidden_region\n",layer,cluster->cluster_relative_idx, cluster->net.at(0));
                 update_forbidden_region(coarse_GRcell,*cluster,true);
+                update_forbidden_edge(GR_unit.at(layer).at(cluster->cluster_relative_idx));
             }
         }
     }
@@ -3094,7 +3463,7 @@ void GR::print_GR(std::vector<std::vector<Cluster>> new_GR_unit) {
         printf("old GR:\n");
         printf("layer:%d|||||||||||\n",layer);
         for (auto cluster = GR_unit.at(layer).begin(); cluster!=GR_unit.at(layer).end(); cluster++) {
-            printf("cluster:%d(%d)\n",cluster->cluster_relative_idx,cluster->max_slack);
+            printf("cluster:%d(%d) AR WL(unit):%d\n",cluster->cluster_relative_idx,cluster->max_slack, cluster->AR_routed_wirelength);
             for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++){
                 printf("%d(%d)  ",*nid, net_list.at(*nid).slack_wirelength);
             }
@@ -4628,9 +4997,11 @@ void GR::update_Cell(std::vector<std::vector<std::vector<Cell>>>& map) {
 }
 
 void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& cluster, bool coarse) {
+    printf("update_forbidden_region(%d)\n",cluster.cluster_relative_idx);
     auto n=net_list.at(cluster.net.at(0));
     // if (n.net_ID==47)
     //     cout<<"break point\n";
+    int check_idx = -1;
     int forbidden_idx = cluster.cluster_relative_idx;
     Coor diagonal_coor;
     diagonal_coor.setup(can_use_layer_num-1,coarse_x_size-1,coarse_y_size-1);
@@ -4654,75 +5025,114 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
         CCW_end_coor=ddr_p->ER_fine_cell.back();
     }
     //mark cluster path in map
-    // if (n.net_ID==47)
-    //     printf("path: ");
+    if (check_idx == cluster.cluster_relative_idx)
+        printf("path: ");
     for (auto p=cluster.path.begin(); p!=cluster.path.end(); p++) {
         GRmap.at(p->z).at(p->x).at(p->y).cluster = cluster.cluster_relative_idx;
-        // if (n.net_ID==47)
-        //     printf("(%d,%d)->",p->x,p->y);
+        if (check_idx == cluster.cluster_relative_idx)
+            printf("(%d,%d)->",p->x,p->y);
     }
-    // if (n.net_ID==47)
-    //     printf("END\n");
+    if (check_idx == cluster.cluster_relative_idx)
+        printf("END\n");
 
     //endpoint decide
     {
         if (cpu_p->escape_dir == LEFT) {
-            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx && CW_start_coor.y<diagonal_coor.y)
                 CW_start_coor.y  += 1;
-            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx && CCW_start_coor.y>0)
                 CCW_start_coor.y -= 1;
             fbd_r = CW_start_coor.x+1;
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+                CW_start_coor.x -= 1;
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx) 
+                CCW_start_coor.x -= 1;
         }
         else if (cpu_p->escape_dir == TOP) {
-            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx && CW_start_coor.x<diagonal_coor.x)
                 CW_start_coor.x  += 1;
-            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx && CCW_start_coor.x>0)
                 CCW_start_coor.x -= 1;
             fbd_b = CW_start_coor.y-1;
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+                CW_start_coor.y+=1;
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx) 
+                CCW_start_coor.y += 1;
         }
         else if (cpu_p->escape_dir == RIGHT) {
-            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx && CW_start_coor.y>0)
                 CW_start_coor.y  -= 1;
-            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx)
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx && CCW_start_coor.y<diagonal_coor.y)
                 CCW_start_coor.y += 1;
             fbd_l = CW_start_coor.x-1;
-        }
-        else if (cpu_p->escape_dir == BOT) {
-            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx) 
-                CW_start_coor.x  -= 1;
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+                CW_start_coor.x+=1;
             while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx) 
                 CCW_start_coor.x += 1;
-            fbd_t = CW_start_coor.y+1;
         }
+        else if (cpu_p->escape_dir == BOT) {
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx && CW_start_coor.x>0) 
+                CW_start_coor.x  -= 1;
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx && CCW_start_coor.x<diagonal_coor.x) 
+                CCW_start_coor.x += 1;
+            fbd_t = CW_start_coor.y+1;
+            while (GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).cluster == forbidden_idx)
+                CW_start_coor.y-=1;
+            while (GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).cluster == forbidden_idx) 
+                CCW_start_coor.y -= 1;
+        }
+        if (check_idx == cluster.cluster_relative_idx) 
+            printf("CW_start_coor decided\n");
 
         if (ddr_p->escape_dir == LEFT) {
-            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx) 
+            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx && CW_end_coor.y>0) 
                 CW_end_coor.y--;
-            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx) 
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx && CCW_end_coor.y<diagonal_coor.y) 
                 CCW_end_coor.y++;
             fbd_r = CW_end_coor.x+1;
-        }
-        else if (ddr_p->escape_dir == TOP) {
             while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx) 
                 CW_end_coor.x  -= 1;
-            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx) 
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx ) 
+                CCW_end_coor.x -= 1;
+        }
+        else if (ddr_p->escape_dir == TOP) {
+            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx && CW_end_coor.x>0) 
+                CW_end_coor.x  -= 1;
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx && CCW_end_coor.x<diagonal_coor.x) 
                 CCW_end_coor.x += 1;
             fbd_b = CW_end_coor.y-1;
-        }
-        else if (ddr_p->escape_dir == RIGHT) {
             while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx) 
                 CW_end_coor.y  += 1;
-            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx) 
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx ) 
+                CCW_end_coor.y += 1;
+        }
+        else if (ddr_p->escape_dir == RIGHT) {
+            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx && CW_end_coor.y<diagonal_coor.y) 
+                CW_end_coor.y  += 1;
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx && CCW_end_coor.y>0) 
                 CCW_end_coor.y -= 1;
             fbd_l = CW_end_coor.x-1;
-        }
-        else if (ddr_p->escape_dir == BOT) {
             while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx) 
                 CW_end_coor.x  += 1;
-            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx) 
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx ) 
+                CCW_end_coor.x += 1;
+        }
+        else if (ddr_p->escape_dir == BOT) {
+            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx && CW_end_coor.x<diagonal_coor.x) 
+                CW_end_coor.x  += 1;
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx && CCW_end_coor.x>0) 
                 CCW_end_coor.x -= 1;
             fbd_t = CW_end_coor.y+1;
+            while (GRmap.at(CW_end_coor.z).at(CW_end_coor.x).at(CW_end_coor.y).cluster == forbidden_idx) 
+                CW_end_coor.y  -= 1;
+            while (GRmap.at(CCW_end_coor.z).at(CCW_end_coor.x).at(CCW_end_coor.y).cluster == forbidden_idx ) 
+                CCW_end_coor.y -= 1;
         }        
+    }
+    if (check_idx == cluster.cluster_relative_idx) {
+        printf("CW start:(%d,%d,%d)  end:(%d,%d,%d)\nCCW start:(%d,%d,%d) end:(%d,%d,%d)\n",
+        CW_start_coor.x,CW_start_coor.y,CW_start_coor.z,CW_end_coor.x,CW_end_coor.y,CW_end_coor.z,
+        CCW_start_coor.x,CCW_start_coor.y,CCW_start_coor.z,CCW_end_coor.x,CCW_end_coor.y,CCW_end_coor.z);
     }
 
     queue<Coor> CW_coor_q,CCW_coor_q;
@@ -4730,20 +5140,21 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
     CCW_coor_q.push(CCW_start_coor);
     GRmap.at(CW_start_coor.z).at(CW_start_coor.x).at(CW_start_coor.y).investigated = forbidden_idx;
     GRmap.at(CCW_start_coor.z).at(CCW_start_coor.x).at(CCW_start_coor.y).investigated = forbidden_idx;
-
     CW_coor = CW_start_coor;
-    while (CW_coor != CW_end_coor) {
-        if (CW_coor_q.empty())
-            printf("break point\n");
-        CW_coor = CW_coor_q.front();
-        CW_coor_q.pop();
-        // if (n.net_ID==47)
-        //    printf("CW coor:(%d,%d,%d) \n",CW_coor.z, CW_coor.x, CW_coor.y);
-        
-        if (CW_coor == CW_end_coor) {
-            cluster.CW_path.push_back(CW_coor);
+    while (!CW_coor_q.empty()) {
+        if (CW_coor_q.empty()) {
+            // printf("break point\n");
             break;
         }
+        CW_coor = CW_coor_q.front();
+        CW_coor_q.pop();
+        if (check_idx == cluster.cluster_relative_idx)
+           printf("CW coor:(%d,%d,%d) \n", CW_coor.x, CW_coor.y,CW_coor.z);
+        
+        // if (CW_coor == CW_end_coor) {
+        //     cluster.CW_path.push_back(CW_coor);
+        //     // break;
+        // }
         bool insert(false);
         stack<Coor> temp_stack;
         f(i,-1,1) {
@@ -4772,7 +5183,8 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
             while (!temp_stack.empty()){
                 Coor temp_coor = temp_stack.top();
                 temp_stack.pop();
-                // printf("(%d,%d,%d) ",temp_coor.z, temp_coor.x, temp_coor.y);
+                if (check_idx==cluster.cluster_relative_idx)
+                    printf("search region(%d,%d,%d) \n", temp_coor.x, temp_coor.y,temp_coor.z);
                 CW_coor_q.push(temp_coor);
                 GRmap.at(temp_coor.z).at(temp_coor.x).at(temp_coor.y).investigated = forbidden_idx;
                 search_region.push(temp_coor);
@@ -4792,18 +5204,19 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
     // printf("CCW start:(%d,%d,%d)   end(%d,%d,%d)\n",CCW_start_coor.z, CCW_start_coor.x, CCW_start_coor.y,
     //                                                 CCW_end_coor.z, CCW_end_coor.x, CCW_end_coor.y);
     CCW_coor = CCW_start_coor;
-    while (CCW_coor != CCW_end_coor) {
+    while (!CCW_coor_q.empty()) {
         if (CCW_coor_q.empty()) {
-            printf("break point\n");
+            // printf("break point\n");
             break;
         }
         CCW_coor = CCW_coor_q.front();
         CCW_coor_q.pop();
-        // printf("CCW coor:(%d,%d,%d) \n",CCW_coor.z, CCW_coor.x, CCW_coor.y);
-        if (CCW_coor == CCW_end_coor) {
-            cluster.CCW_path.push_back(CCW_coor);
-            break;
-        }
+        if (check_idx == cluster.cluster_relative_idx)
+            printf("top CCW coor:(%d,%d,%d) \n", CCW_coor.x, CCW_coor.y, CCW_coor.z);
+        // if (CCW_coor == CCW_end_coor) {
+        //     cluster.CCW_path.push_back(CCW_coor);
+        //     // break;
+        // }
         bool insert(false);
         stack<Coor> temp_stack;
         f(i,-1,1) {
@@ -4832,7 +5245,8 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
             {
                 Coor temp_coor = temp_stack.top();
                 temp_stack.pop();
-                // printf("(%d,%d,%d) ",temp_coor.z, temp_coor.x, temp_coor.y);
+                if (check_idx==cluster.cluster_relative_idx)
+                    printf("search region (%d,%d,%d) \n", temp_coor.x, temp_coor.y,temp_coor.z);
                 CCW_coor_q.push(temp_coor);
                 GRmap.at(temp_coor.z).at(temp_coor.x).at(temp_coor.y).investigated = forbidden_idx;
                 search_region.push(temp_coor);
@@ -4850,25 +5264,116 @@ void GR::update_forbidden_region(vector<vector<vector<Cell>>>& GRmap, Cluster& c
     for (auto p=cluster.path.begin(); p!=cluster.path.end(); p++) {
         GRmap.at(p->z).at(p->x).at(p->y).cluster = -1;
     }
-    // printf("cluster:%d\nCW(z,x,y):\n",cluster.cluster_relative_idx);
-    // for (auto coor=cluster.CW_path.begin(); coor!=cluster.CW_path.end(); coor++) {
-    //     printf("(%d,%d,%d)  ", coor->z,coor->x,coor->y);
-    // }
-    // printf("\n");
-    // printf("CCW(z,x,y):\n");
-    // for (auto coor=cluster.CCW_path.begin(); coor!=cluster.CCW_path.end(); coor++) {
-    //     printf("(%d,%d,%d)  ", coor->z,coor->x,coor->y);
-    // }
-    // printf("\n\n");
+    if (check_idx == cluster.cluster_relative_idx) {
+        printf("cluster:%d\nCW(z,x,y):\n",cluster.cluster_relative_idx);
+        for (auto coor=cluster.CW_path.begin(); coor!=cluster.CW_path.end(); coor++) {
+            printf("(%d,%d,%d)  ", coor->z,coor->x,coor->y);
+        }
+        printf("\n");
+        printf("CCW(z,x,y):\n");
+        for (auto coor=cluster.CCW_path.begin(); coor!=cluster.CCW_path.end(); coor++) {
+            printf("(%d,%d,%d)  ", coor->z,coor->x,coor->y);
+        }
+        printf("\n\n");        
+    }
+
+    printf("update_forbidden_region(%d) END\n",cluster.cluster_relative_idx);
 }
 
 void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse) {
     std::vector<std::vector<std::vector<Cell>>>* GR_map;
+    int check_idx = -1;
     if (coarse) {
         GR_map=&coarse_GRcell;
     }
     else
         GR_map=&fine_GRcell;
+    {
+        
+        Pin* cpu_p = get_cpupin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
+        Pin* ddr_p = get_ddrpin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
+        Cluster* cluster = &_GR_unit.at(c_idx);
+        if (cpu_p->escape_dir == TOP) {
+            GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y-1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->start.x  ,cluster->start.y-1,cluster->start.z,
+            cluster->start.x+1,cluster->start.y-1,cluster->start.z,
+            cluster->start.x-1,cluster->start.y-1,cluster->start.z);
+        }
+        else if (cpu_p->escape_dir == BOT) {
+            Coor temp_coor=cluster->start;
+            GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y+1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->start.x  ,cluster->start.y+1,cluster->start.z,
+            cluster->start.x+1,cluster->start.y+1,cluster->start.z,
+            cluster->start.x-1,cluster->start.y+1,cluster->start.z);
+        }
+        else if (cpu_p->escape_dir == RIGHT) {
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->start.x-1,cluster->start.y  ,cluster->start.z,
+            cluster->start.x-1,cluster->start.y+1,cluster->start.z,
+            cluster->start.x-1,cluster->start.y-1,cluster->start.z);
+            
+        }
+        else if (cpu_p->escape_dir == LEFT) {
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=true;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->start.x+1,cluster->start.y  ,cluster->start.z,
+            cluster->start.x+1,cluster->start.y+1,cluster->start.z,
+            cluster->start.x+1,cluster->start.y-1,cluster->start.z);
+            
+        }
+
+        if (ddr_p->escape_dir == TOP) {
+            GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y-1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->end.x  ,cluster->end.y-1,cluster->end.z,
+            cluster->end.x+1,cluster->end.y-1,cluster->end.z,
+            cluster->end.x-1,cluster->end.y-1,cluster->end.z);
+        }
+        else if (ddr_p->escape_dir == BOT) {
+            Coor temp_coor=cluster->start;
+            GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y+1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->end.x  ,cluster->end.y+1,cluster->end.z,
+            cluster->end.x+1,cluster->end.y+1,cluster->end.z,
+            cluster->end.x-1,cluster->end.y+1,cluster->end.z);
+        }
+        else if (ddr_p->escape_dir == RIGHT) {
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->end.x-1,cluster->end.y  ,cluster->end.z,
+            cluster->end.x-1,cluster->end.y+1,cluster->end.z,
+            cluster->end.x-1,cluster->end.y-1,cluster->end.z);
+            
+        }
+        else if (ddr_p->escape_dir == LEFT) {
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=true;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=true;
+            printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            cluster->end.x+1,cluster->end.y  ,cluster->end.z,
+            cluster->end.x+1,cluster->end.y+1,cluster->end.z,
+            cluster->end.x+1,cluster->end.y-1,cluster->end.z);
+            
+        }
+
+    }
     // if (c_idx==check_idx)
     //     cout<<"break point\n";
     int CW_idx(c_idx+1), CCW_idx(c_idx-1);
@@ -4896,8 +5401,11 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
         else 
             break;
     }
-    if (CCW_idx==c_idx)
+    if (CCW_idx==c_idx) {
+        _GR_unit.at(c_idx).CW_idx = -1;
+        _GR_unit.at(c_idx).CCW_idx = -1;
         return;
+    }
     if (CCW_idx==CW_idx) {
         if (CW_idx > c_idx) {
             // int d = CW_idx-c_idx;
@@ -4969,7 +5477,10 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
             GR_map->at(coor->z).at(coor->x).at(coor->y).cluster=-1;
         }
         // print_map_cluster(_GR_unit.at(c_idx).start.z);
-        if (overlap) {
+        bool delete_fbd(true);
+        if (CW_idx>c_idx && CCW_idx<c_idx)
+            delete_fbd = false;
+        if (overlap && delete_fbd) {
             // CW_dist = CW_idx-c_idx>0?CW_idx-c_idx:round-(c_idx-CW_idx);
             // CCW_dist = CCW_idx-c_idx>0?round-(CCW_idx-c_idx):c_idx-CCW_idx;
             CW_dist = CW_idx-c_idx>0?CW_idx-c_idx:round;
@@ -4982,6 +5493,15 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
     }
 
     // printf("\n");
+    
+    if (!cycle_ddr && CW_idx<c_idx) {
+        printf("CW:%d skip\n",CW_idx);
+        CW_idx = -1;
+    }
+    if (!cycle_ddr && CCW_idx>c_idx) {
+        printf("CCW:%d skip\n",CCW_idx);
+        CCW_idx = -1;
+    }
     if (CW_idx != -1) {
         int z;
         printf("CW cluster: %d\n path(z,x,y): ",CW_idx);
@@ -4991,6 +5511,7 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
             z=coor->z;
         }
         printf("end\n");
+        _GR_unit.at(c_idx).fbd_edge.insert(_GR_unit.at(CW_idx).CW_fbd_edge.begin(),_GR_unit.at(CW_idx).CW_fbd_edge.end());
         // auto coor=_GR_unit.at(CW_idx).CW_path.begin();
         // printf("CW add\n");
         // for (int y=GR_map->at(z).at(0).size()-1; y>=0; y--) {
@@ -5015,6 +5536,7 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
             z=coor->z;
         }
         printf("end\n");
+        _GR_unit.at(c_idx).fbd_edge.insert(_GR_unit.at(CCW_idx).CCW_fbd_edge.begin(),_GR_unit.at(CCW_idx).CCW_fbd_edge.end());
         auto coor = _GR_unit.at(CCW_idx).CCW_path.begin();
         // printf("CCW add\n");
         // for (int y=GR_map->at(z).at(0).size()-1; y>=0; y--) {
@@ -5033,89 +5555,6 @@ void GR::add_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse)
     printf("\n");
     _GR_unit.at(c_idx).CW_idx = CW_idx;
     _GR_unit.at(c_idx).CCW_idx = CCW_idx;
-    Pin* cpu_p = get_cpupin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
-    Pin* ddr_p = get_ddrpin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
-    Cluster* cluster = &_GR_unit.at(c_idx);
-    if (cpu_p->escape_dir == TOP) {
-        GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y-1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->start.x  ,cluster->start.y-1,cluster->start.z,
-        cluster->start.x+1,cluster->start.y-1,cluster->start.z,
-        cluster->start.x-1,cluster->start.y-1,cluster->start.z);
-    }
-    else if (cpu_p->escape_dir == BOT) {
-        Coor temp_coor=cluster->start;
-        GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y+1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->start.x  ,cluster->start.y+1,cluster->start.z,
-        cluster->start.x+1,cluster->start.y+1,cluster->start.z,
-        cluster->start.x-1,cluster->start.y+1,cluster->start.z);
-    }
-    else if (cpu_p->escape_dir == RIGHT) {
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->start.x-1,cluster->start.y  ,cluster->start.z,
-        cluster->start.x-1,cluster->start.y+1,cluster->start.z,
-        cluster->start.x-1,cluster->start.y-1,cluster->start.z);
-        
-    }
-    else if (cpu_p->escape_dir == LEFT) {
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=true;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->start.x+1,cluster->start.y  ,cluster->start.z,
-        cluster->start.x+1,cluster->start.y+1,cluster->start.z,
-        cluster->start.x+1,cluster->start.y-1,cluster->start.z);
-        
-    }
-
-    if (ddr_p->escape_dir == TOP) {
-        GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y-1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->end.x  ,cluster->end.y-1,cluster->end.z,
-        cluster->end.x+1,cluster->end.y-1,cluster->end.z,
-        cluster->end.x-1,cluster->end.y-1,cluster->end.z);
-    }
-    else if (ddr_p->escape_dir == BOT) {
-        Coor temp_coor=cluster->start;
-        GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y+1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->end.x  ,cluster->end.y+1,cluster->end.z,
-        cluster->end.x+1,cluster->end.y+1,cluster->end.z,
-        cluster->end.x-1,cluster->end.y+1,cluster->end.z);
-    }
-    else if (ddr_p->escape_dir == RIGHT) {
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->end.x-1,cluster->end.y  ,cluster->end.z,
-        cluster->end.x-1,cluster->end.y+1,cluster->end.z,
-        cluster->end.x-1,cluster->end.y-1,cluster->end.z);
-        
-    }
-    else if (ddr_p->escape_dir == LEFT) {
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=true;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=true;
-        printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        cluster->end.x+1,cluster->end.y  ,cluster->end.z,
-        cluster->end.x+1,cluster->end.y+1,cluster->end.z,
-        cluster->end.x+1,cluster->end.y-1,cluster->end.z);
-        
-    }
-
 }
 
 void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coarse) {
@@ -5125,8 +5564,95 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
     }
     else
         GR_map=&fine_GRcell;
-    
-								 
+        _GR_unit.at(c_idx).fbd_edge.clear();
+    {
+		
+        Pin* cpu_p = get_cpupin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
+        Pin* ddr_p = get_ddrpin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
+        Cluster* cluster = &_GR_unit.at(c_idx);
+        if (cpu_p->escape_dir == TOP) {
+            GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y-1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=false;
+                                                        
+																   
+																   
+																	
+        }
+        else if (cpu_p->escape_dir == BOT) {
+										  
+            GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y+1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=false;
+                                                        
+																   
+																   
+																	
+        }
+        else if (cpu_p->escape_dir == RIGHT) {
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=false;
+																					 
+																   
+																   
+																	
+			
+        }
+        else if (cpu_p->escape_dir == LEFT) {
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=false;
+            GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=false;
+																					 
+																   
+																   
+																	
+			
+        }
+
+        if (ddr_p->escape_dir == TOP) {
+            GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y-1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=false;
+            // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            // cluster->end.x  ,cluster->end.y-1,cluster->end.z,
+            // cluster->end.x+1,cluster->end.y-1,cluster->end.z,
+            // cluster->end.x-1,cluster->end.y-1,cluster->end.z);
+        }
+        else if (ddr_p->escape_dir == BOT) {
+            Coor temp_coor=cluster->start;
+            GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y+1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=false;
+            // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            // cluster->end.x  ,cluster->end.y+1,cluster->end.z,
+            // cluster->end.x+1,cluster->end.y+1,cluster->end.z,
+            // cluster->end.x-1,cluster->end.y+1,cluster->end.z);
+        }
+        else if (ddr_p->escape_dir == RIGHT) {
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=false;
+            // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            // cluster->end.x-1,cluster->end.y  ,cluster->end.z,
+            // cluster->end.x-1,cluster->end.y+1,cluster->end.z,
+            // cluster->end.x-1,cluster->end.y-1,cluster->end.z);
+            
+        }
+        else if (ddr_p->escape_dir == LEFT) {
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=false;
+            GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=false;
+            // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
+            // cluster->end.x+1,cluster->end.y  ,cluster->end.z,
+            // cluster->end.x+1,cluster->end.y+1,cluster->end.z,
+            // cluster->end.x+1,cluster->end.y-1,cluster->end.z);
+            
+        }
+
+    }
+    // if (c_idx==check_idx)
+    //     cout<<"break point\n";
     int CW_idx(c_idx+1), CCW_idx(c_idx-1);
     int round(_GR_unit.size());
     if (CCW_idx<0)
@@ -5153,8 +5679,11 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
         else 
             break;
     }
-    if (CCW_idx==c_idx)
+    if (CCW_idx==c_idx) {
+        _GR_unit.at(c_idx).CW_idx = -1;
+        _GR_unit.at(c_idx).CCW_idx = -1;
         return;
+    }
     if (CCW_idx==CW_idx) {
         if (CW_idx > c_idx) {
             // int d = CW_idx-c_idx;
@@ -5170,7 +5699,7 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
             //     CCW_idx = -1;
             // else 
             //     CW_idx = -1;
-            CW_idx = -1;		
+            CW_idx = -1;
         }
 
     }
@@ -5183,21 +5712,21 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
     //test CW and CCW have any overlap
     if (CCW_idx!=-1 && CW_idx!=-1) {
         bool overlap(false);
-														 
-																																					  
-																																  
-			
-																						  
-																																																						  
-																																				  
-												   
-								   
-						 
-				
-			
-																																					  
-																															
-			
+        // print_map_cluster(_GR_unit.at(c_idx).start.z);
+        // for (auto coor=_GR_unit.at(CW_idx).CW_path.begin(); coor!=_GR_unit.at(CW_idx).CW_path.end(); coor++) {
+        //     GR_map->at(coor->z).at(coor->x).at(coor->y).cluster=CW_idx;
+        // }
+        // // print_map_cluster(_GR_unit.at(c_idx).start.z);
+        // for (auto coor=_GR_unit.at(CCW_idx).CCW_path.begin(); coor!=_GR_unit.at(CCW_idx).CCW_path.end(); coor++) {
+        //     if (GR_map->at(coor->z).at(coor->x).at(coor->y).cluster == CW_idx) {
+        //         printf ("CCW and CW overlap\n");
+        //         overlap = true; 
+        //         break;
+        //     }
+        // }
+        // for (auto coor=_GR_unit.at(CW_idx).CW_path.begin(); coor!=_GR_unit.at(CW_idx).CW_path.end(); coor++) {
+        //     GR_map->at(coor->z).at(coor->x).at(coor->y).cluster=-1;
+        // }
         for (auto coor=_GR_unit.at(CW_idx).path.begin(); coor!=_GR_unit.at(CW_idx).path.end(); coor++) {
             GR_map->at(coor->z).at(coor->x).at(coor->y).cluster=CW_idx;
         }        
@@ -5227,9 +5756,12 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
             GR_map->at(coor->z).at(coor->x).at(coor->y).cluster=-1;
         }
 														 
-        if (overlap) {
-																																  
-																																		  
+        bool delete_fbd(true);
+        if (CW_idx>c_idx && CCW_idx<c_idx)
+            delete_fbd = false;
+        if (overlap && delete_fbd) {
+            // CW_dist = CW_idx-c_idx>0?CW_idx-c_idx:round-(c_idx-CW_idx);
+            // CCW_dist = CCW_idx-c_idx>0?round-(CCW_idx-c_idx):c_idx-CCW_idx;
             CW_dist = CW_idx-c_idx>0?CW_idx-c_idx:round;
             CCW_dist = CCW_idx-c_idx>0?round:c_idx-CCW_idx;
             if (CW_dist>CCW_dist)
@@ -5239,17 +5771,25 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
         }        
     }
 
-					
+    // printf("\n");
+    if (!cycle_ddr && CW_idx<c_idx) {
+        printf("CW:%d skip\n",CW_idx);
+        CW_idx = -1;
+    }
+    if (!cycle_ddr && CCW_idx>c_idx) {
+        printf("CCW:%d skip\n",CCW_idx);
+        CCW_idx = -1;
+    }
     if (CW_idx != -1) {
         int z;
-														
+        // printf("CW cluster: %d\n path(z,x,y): ",CW_idx);
         for (auto coor=_GR_unit.at(CW_idx).CW_path.begin(); coor!=_GR_unit.at(CW_idx).CW_path.end();coor++) {
-														   
+            // printf("(%d,%d,%d)->",coor->z,coor->x,coor->y);
             GR_map->at(coor->z).at(coor->x).at(coor->y).forbidden_region=false;
             z=coor->z;
         }
-						
-        auto coor=_GR_unit.at(CW_idx).CW_path.begin();
+        // printf("\n");			
+        // auto coor=_GR_unit.at(CW_idx).CW_path.begin();
         // printf("CW remove\n");
         // for (int y=GR_map->at(z).at(0).size()-1; y>=0; y--) {
         //     printf("%2d",y);
@@ -5262,19 +5802,19 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
         // for (int x=0; x<GR_map->at(z).size(); x++) {
         //     printf("%3d",x);
         // }
-        // printf("\n  " );
         // printf("\n");
+        // printf("\n ");
 						 
     }
     if (CCW_idx != -1) {
         int z;
-														  
+        // printf("CCW cluster: %d\n path(z,x,y): ",CCW_idx);
         for (auto coor=_GR_unit.at(CCW_idx).CCW_path.begin(); coor!=_GR_unit.at(CCW_idx).CCW_path.end();coor++) {
             GR_map->at(coor->z).at(coor->x).at(coor->y).forbidden_region=false;
-														   
+            // printf("(%d,%d,%d)->",coor->z,coor->x,coor->y);
             z=coor->z;
         }
-						
+        // printf("end\n");
         auto coor = _GR_unit.at(CCW_idx).CCW_path.begin();
         // printf("CCW remove\n");
         // for (int y=GR_map->at(z).at(0).size()-1; y>=0; y--) {
@@ -5290,92 +5830,9 @@ void GR::remove_forbidden_region(int c_idx, vector<Cluster>& _GR_unit, bool coar
         // }
         // printf("\n");
     }
-				 
-									   
-										 
-    Pin* cpu_p = get_cpupin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
-    Pin* ddr_p = get_ddrpin(net_list.at(*_GR_unit.at(c_idx).net.begin()));
-    Cluster* cluster = &_GR_unit.at(c_idx);
-    if (cpu_p->escape_dir == TOP) {
-        GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y-1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=false;
-																				 
-															   
-															   
-																
-    }
-    else if (cpu_p->escape_dir == BOT) {
-									  
-        GR_map->at(cluster->start.z).at(cluster->start.x).at(cluster->start.y+1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=false;
-																				 
-															   
-															   
-																
-    }
-    else if (cpu_p->escape_dir == RIGHT) {
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y+1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x-1).at(cluster->start.y-1).forbidden_region=false;
-																				 
-															   
-															   
-																
-        
-    }
-    else if (cpu_p->escape_dir == LEFT) {
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y+1).forbidden_region=false;
-        GR_map->at(cluster->start.z).at(cluster->start.x+1).at(cluster->start.y-1).forbidden_region=false;
-																				 
-															   
-															   
-																
-        
-    }
-
-    if (ddr_p->escape_dir == TOP) {
-        GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y-1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=false;
-        // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        // cluster->end.x  ,cluster->end.y-1,cluster->end.z,
-        // cluster->end.x+1,cluster->end.y-1,cluster->end.z,
-        // cluster->end.x-1,cluster->end.y-1,cluster->end.z);
-    }
-    else if (ddr_p->escape_dir == BOT) {
-        Coor temp_coor=cluster->start;
-        GR_map->at(cluster->end.z).at(cluster->end.x).at(cluster->end.y+1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=false;
-        // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        // cluster->end.x  ,cluster->end.y+1,cluster->end.z,
-        // cluster->end.x+1,cluster->end.y+1,cluster->end.z,
-        // cluster->end.x-1,cluster->end.y+1,cluster->end.z);
-    }
-    else if (ddr_p->escape_dir == RIGHT) {
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y+1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x-1).at(cluster->end.y-1).forbidden_region=false;
-        // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        // cluster->end.x-1,cluster->end.y  ,cluster->end.z,
-        // cluster->end.x-1,cluster->end.y+1,cluster->end.z,
-        // cluster->end.x-1,cluster->end.y-1,cluster->end.z);
-        
-    }
-    else if (ddr_p->escape_dir == LEFT) {
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y+1).forbidden_region=false;
-        GR_map->at(cluster->end.z).at(cluster->end.x+1).at(cluster->end.y-1).forbidden_region=false;
-        // printf(" escape dir forbidden_region:(%d,%d,%d) (%d,%d,%d) (%d,%d,%d)\n",
-        // cluster->end.x+1,cluster->end.y  ,cluster->end.z,
-        // cluster->end.x+1,cluster->end.y+1,cluster->end.z,
-        // cluster->end.x+1,cluster->end.y-1,cluster->end.z);
-        
-    }
-
+    printf("\n");
+    _GR_unit.at(c_idx).CW_idx = CW_idx;
+    _GR_unit.at(c_idx).CCW_idx = CCW_idx;
 }
 
 void GR::AR_RSRC_allocate(string filename) {
@@ -5383,34 +5840,38 @@ void GR::AR_RSRC_allocate(string filename) {
     int layer(0);
     int layer_cardinal_num = (coarse_x_size*(coarse_y_size+1)+((coarse_x_size+1)*coarse_y_size));
     int edge_cardinal_num = (coarse_x_size*(coarse_y_size+1));
+    printf("layer_cardinal_num:%d  edge_cardinal_num:%d\n",layer_cardinal_num,edge_cardinal_num);
     edge_table.clear();     edge_table.resize(can_use_layer_num);
     seg_list.clear();   seg_list.resize(can_use_layer_num);
     for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
         printf("layer:%d \n",layer);
         for(auto cluster=l->begin(); cluster!=l->end(); cluster++) {
-            printf("cluster:%d path size:%d   ", cluster->cluster_relative_idx,cluster->path.size());
+            printf("cluster:%d path size:%d  AR_WL:%f ", cluster->cluster_relative_idx,cluster->path.size(),cluster->AR_routed_wirelength);
             int seg_idx(0);
             int max_slack(0);
-            for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
-                auto n = &net_list.at(*nid);
-                if (n->slack_wirelength > max_slack)    
-                    max_slack = n->slack_wirelength;
-            }
-            printf("max slack:%d\n", max_slack);
-            if (cluster->path.size()==0)
+            // for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
+            //     auto n = &net_list.at(*nid);
+            //     if (n->slack_wirelength > max_slack)    
+            //         max_slack = n->slack_wirelength;
+            // }
+            printf("max slack:%d\n", cluster->max_slack);
+            if (cluster->path.size()==0) {
+                printf("skip cluster:%d\n",cluster->cluster_relative_idx);
                 continue;
+                
+            }
             auto s = cluster->path.begin();
             auto temp = cluster->path.begin(); temp++;
             for (auto t=temp; t!=cluster->path.end(); t++) {
-                // if (layer == 5)
-                printf("cluster:%d, seg_idx:%d\n",cluster->cluster_relative_idx,seg_idx);
+                // if (layer == 1 && cluster->cluster_relative_idx==1)
+                //     printf("?????????????????????????????????????????????\n");
                 string name = "C"+to_string(cluster->cluster_relative_idx)+"I"+to_string(seg_idx);
                 Segment seg(layer, seg_idx, cluster->net.size(), cluster->cluster_relative_idx, name);
                 seg.end1 = *s;
                 seg.end2 = *t;
                 // if (layer == 5)
                 //     printf("t is valid\n",seg_idx);
-                seg.slack = max_slack;
+                seg.slack = cluster->max_slack;
                 
                 seg_list.at(layer)[cluster->cluster_relative_idx].push_back(seg);
                 if (s->x==t->x) {//horizontal seg
@@ -5448,7 +5909,8 @@ void GR::AR_RSRC_allocate(string filename) {
                     int edge_idx2 = layer*layer_cardinal_num + maxy*coarse_x_size + maxx;
                     int edge_idx3 = layer*layer_cardinal_num + edge_cardinal_num + miny*(coarse_x_size+1) + maxx;
                     int edge_idx4 = layer*layer_cardinal_num + maxy*coarse_x_size + minx;
-
+                    // if (seg_idx==9 && layer==1 && cluster->cluster_relative_idx==9)
+                    //     printf();
                     edge_table.at(layer)[edge_idx1].index=edge_idx1;
                     edge_table.at(layer)[edge_idx1].resource=coarse_GRcell.at(layer).at(maxx).at(maxy).edge_r[3];
                     edge_table.at(layer)[edge_idx1].segment.push_back(seg);
@@ -5468,8 +5930,13 @@ void GR::AR_RSRC_allocate(string filename) {
                 s=t;
                 seg_idx++;
             }
+            // printf("cluster:%d, #seg:%d\n",cluster->cluster_relative_idx,seg_list.at(layer)[cluster->cluster_relative_idx].size());
         }
         layer++;
+    }
+    if (seg_list.at(1).find(1)!=seg_list.at(1).end()) {
+        printf("seg_list.at(1).find(1) exist!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        // return;
     }
     printf("output .lp file\n");
     layer = 0;
@@ -5484,12 +5951,12 @@ void GR::AR_RSRC_allocate(string filename) {
     for (layer=0; layer<can_use_layer_num; layer++) {
         string base_file_name = file_name + "_"+to_string(layer);
         string sol_file_name = base_file_name +".sol";
-        bool opt_sol = Load_ideal_LP_Output(sol_file_name, seg_list.at(layer));
+        bool opt_sol = Load_ideal_LP_Output(sol_file_name, seg_list.at(layer), GR_unit.at(layer));
         if (!opt_sol) {
             if (GR_unit.at(layer).size()==0)
                 continue;
             output_passable_lp(layer, file_name, edge_table.at(layer), GR_unit.at(layer), seg_list.at(layer), net_list);
-            ripuped_cluster.at(layer) = Load_passable_LP_Output(layer, file_name, seg_list.at(layer));
+            ripuped_cluster.at(layer) = Load_passable_LP_Output(layer, file_name, seg_list.at(layer), GR_unit.at(layer));
         }
     }
     for (auto l=0; l<can_use_layer_num; l++) {
@@ -5501,123 +5968,13 @@ void GR::AR_RSRC_allocate(string filename) {
     }
 }
 
-void GR::AR_RSRC_allocate(int layer, string filename) {
-    /*printf("AR_RSRC_allocate start(layer:%d)\n",layer);
-    int layer_cardinal_num = (coarse_x_size*(coarse_y_size+1)+((coarse_x_size+1)*coarse_y_size));
-    int edge_cardinal_num = (coarse_x_size*(coarse_y_size+1));
-    edge_table.at(layer).clear();
-    seg_list.at(layer).clear();
-
-        printf("layer:%d \n",layer);
-        for(auto cluster=GR_unit.at(layer).begin(); cluster!=GR_unit.at(layer).end(); cluster++) {
-            printf("cluster:%d   ", cluster->cluster_relative_idx);
-            int seg_idx(0);
-            auto s = cluster->path.begin();
-            auto temp = cluster->path.begin(); temp++;
-            int max_slack(0);
-            for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
-                auto n = &net_list.at(*nid);
-                if (n->slack_wirelength > max_slack)    
-                    max_slack = n->slack_wirelength;
-            }
-            printf("max slack:%d\n", max_slack);
-            if (cluster->path.size()==0) {
-                printf("layer%d cluster:%d no AR path\n", layer,cluster->cluster_relative_idx);
-                continue;
-            }
-            for (auto t=temp; t!=cluster->path.end(); t++) {
-                // if (layer == 5)
-                    // printf("seg_idx:%d, path size:%d\n",seg_idx,cluster->path.size());
-                string name = "C"+to_string(cluster->cluster_relative_idx)+"I"+to_string(seg_idx);
-                Segment seg(layer, seg_idx, cluster->net.size(), cluster->cluster_relative_idx, name);
-                seg.end1 = *s;
-                seg.end2 = *t;
-                // if (layer == 5)
-                //     printf("t is valid\n",seg_idx);
-                seg.slack = max_slack;
-                
-                seg_list.at(layer)[cluster->cluster_relative_idx].push_back(seg);
-                if (s->x==t->x) {//horizontal seg
-                    int y=s->y>t->y?s->y:t->y;
-                    int edge_idx = layer*layer_cardinal_num + y*coarse_x_size + s->x;
-                    
-                    edge_table.at(layer)[edge_idx].index=edge_idx;
-                    edge_table.at(layer)[edge_idx].resource=coarse_GRcell.at(layer).at(s->x).at(y).edge_r[2];
-                    edge_table.at(layer)[edge_idx].segment.push_back(seg);
-                }
-                else if (s->y==t->y) {//verticle seg
-                    int x=s->x>t->x?s->x:t->x;
-                    int edge_idx = layer*layer_cardinal_num + edge_cardinal_num + s->y*(coarse_x_size+1) + x;
-                    
-                    edge_table.at(layer)[edge_idx].index=edge_idx;
-                    edge_table.at(layer)[edge_idx].resource=coarse_GRcell.at(layer).at(x).at(s->y).edge_r[2];
-                    edge_table.at(layer)[edge_idx].segment.push_back(seg);
-                }
-                else {//four direction, all dir involve in 4 edge
-                    int minx, miny, maxx, maxy;
-                    if (s->x > t->x && s->y > t->y) {//Left Bottom
-                        minx=t->x, miny=t->y, maxx=s->x, maxy=s->y;
-                    }
-                    else if (s->x < t->x && s->y < t->y) {//Right Top
-                        minx=s->x, miny=s->y, maxx=t->x, maxy=t->y;
-                    }
-                    else if (s->x > t->x && s->y < t->y) {//LEFT TOP
-                        minx=t->x, miny=s->y, maxx=s->x, maxy=t->y;
-                    }
-                    else if (s->x < t->x && s->y > t->y) {//Right Bottom
-                        minx=s->x, miny=t->y, maxx=t->x, maxy=s->y;
-
-                    }
-                    int edge_idx1 = layer*layer_cardinal_num + edge_cardinal_num + maxy*(coarse_x_size+1) + maxx;
-                    int edge_idx2 = layer*layer_cardinal_num + maxy*coarse_x_size + maxx;
-                    int edge_idx3 = layer*layer_cardinal_num + edge_cardinal_num + miny*(coarse_x_size+1) + maxx;
-                    int edge_idx4 = layer*layer_cardinal_num + maxy*coarse_x_size + minx;
-
-                    edge_table.at(layer)[edge_idx1].index=edge_idx1;
-                    edge_table.at(layer)[edge_idx1].resource=coarse_GRcell.at(layer).at(maxx).at(maxy).edge_r[3];
-                    edge_table.at(layer)[edge_idx1].segment.push_back(seg);
-
-                    edge_table.at(layer)[edge_idx2].index=edge_idx2;
-                    edge_table.at(layer)[edge_idx2].resource=coarse_GRcell.at(layer).at(maxx).at(maxy).edge_r[2];
-                    edge_table.at(layer)[edge_idx2].segment.push_back(seg);
-                    
-                    edge_table.at(layer)[edge_idx3].index=edge_idx3;
-                    edge_table.at(layer)[edge_idx3].resource=coarse_GRcell.at(layer).at(minx).at(miny).edge_r[1];
-                    edge_table.at(layer)[edge_idx3].segment.push_back(seg);
-                    
-                    edge_table.at(layer)[edge_idx4].index=edge_idx4;
-                    edge_table.at(layer)[edge_idx4].resource=coarse_GRcell.at(layer).at(minx).at(miny).edge_r[0];
-                    edge_table.at(layer)[edge_idx4].segment.push_back(seg);
-                }
-                s=t;
-                seg_idx++;
-            }
-        }
-    printf("output .lp file\n");
-    ripuped_cluster.at(layer).clear(); //ripuped_cluster.resize(can_use_layer_num);
-    output_ideal_lp(layer,file_name,edge_table.at(layer), GR_unit.at(layer), seg_list.at(layer), net_list);
-       
-    string base_file_name = file_name + "_"+to_string(layer);
-    string sol_file_name = base_file_name +".sol";
-    bool opt_sol = Load_ideal_LP_Output(sol_file_name, seg_list.at(layer));
-    if (!opt_sol) {
-        output_passable_lp(layer, file_name, edge_table.at(layer), GR_unit.at(layer), seg_list.at(layer), net_list);
-        ripuped_cluster.at(layer) = Load_passable_LP_Output(layer, file_name, seg_list.at(layer));
-    }
-    printf("layer %d violation cluster: ",layer);
-    for (auto nid=ripuped_cluster.at(layer).begin(); nid!=ripuped_cluster.at(layer).end(); nid++) {
-        printf("%d ",*nid);
-    }
-    printf("\n");
-    */
-}
 
 bool GR::RSRC_allocate_fail() {
     for (auto l=ripuped_cluster.begin(); l!=ripuped_cluster.end(); l++) {
         if (l->size()!=0)
-            return false;
+            return true;
     }
-    return true;
+    return false;
 } 
 void GR::ripup_cluster(bool AstarFail, int c_idx, std::vector<Cluster>& _GR_unit, bool coarse) {
     printf("ripup_cluster %d\n",c_idx);
@@ -5625,10 +5982,11 @@ void GR::ripup_cluster(bool AstarFail, int c_idx, std::vector<Cluster>& _GR_unit
     _GR_unit.at(c_idx).CCW_path.clear();
     // _GR_unit.at(c_idx).CW_idx = -1;
     // _GR_unit.at(c_idx).CCW_idx = -1;
-    _GR_unit.at(c_idx).last_AR_routed_WL = 0;//?
     auto cluster = &_GR_unit.at(c_idx);
-    if (AstarFail)
+        _GR_unit.at(c_idx).last_AR_routed_WL = _GR_unit.at(c_idx).AR_routed_wirelength;
+    if (AstarFail) {
         cluster->ripup_num++;
+    }
     double wl(0);
     std::vector<std::vector<std::vector<Cell>>>* map=&coarse_GRcell;
     if (AstarFail) {
@@ -5777,29 +6135,40 @@ void GR::ripup_cluster(bool AstarFail, int c_idx, std::vector<Cluster>& _GR_unit
 void GR::update_total_wl() {
     for (auto l=GR_unit.begin(); l!=GR_unit.end(); l++) {
         for(auto cluster=l->begin(); cluster!=l->end(); cluster++) {
-            double AR_wire_length(0);
-            for (auto s=cluster->path.begin(); s!=cluster->path.end(); s++) {
-                auto t=s;   t++;
-                if (t == cluster->path.end())
-                    break;
-                if ((s->x-t->x)*(s->y-t->y)==0)
-                    AR_wire_length += coarse_x_length;
-                else
-                    AR_wire_length += coarse_x_length*sqrt(2);
+            int AR_wire_length(0);
+            // for (auto s=cluster->path.begin(); s!=cluster->path.end(); s++) {
+            //     auto t=s;   t++;
+            //     if (t == cluster->path.end())
+            //         break;
+            //     if ((s->x-t->x)*(s->y-t->y)==0)
+            //         AR_wire_length += coarse_x_length;
+            //     else
+            //         AR_wire_length += coarse_x_length*sqrt(2);
+            // }
+            AR_wire_length = cluster->AR_routed_wirelength*coarse_x_length;
+            if (AR_wire_length!=0) {
+                // printf("cluster:%d \n",cluster->cluster_relative_idx);
+                for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
+                    auto n = &net_list.at(*nid);
+                    n->AR_routed_wirelength = AR_wire_length;//become int
+                    // printf("net:%d AR_routed_wirelength:%d\n",n->net_ID, n->AR_routed_wirelength);
+                }                
             }
-            for (auto nid=cluster->net.begin(); nid!=cluster->net.end(); nid++) {
-                auto n = &net_list.at(*nid);
-                n->AR_routed_wirelength = AR_wire_length;//become int
-            }
+
         }
+        printf("\n");
     }
     for (auto g=merged_group.begin(); g!=merged_group.end(); g++) {
         int group_max_wl(0);
+        int max_WL_nid(-1);
         for (auto nid=g->begin(); nid!=g->end(); nid++) {
             auto n = &net_list.at(*nid);
-            if (n->ER_routed_wirelength+n->AR_routed_wirelength > group_max_wl) 
+            if (n->ER_routed_wirelength+n->AR_routed_wirelength > group_max_wl) {
                 group_max_wl = n->ER_routed_wirelength+n->AR_routed_wirelength;
+                max_WL_nid = n->net_ID;
+            } 
         }
+        printf("group_max_wl(max_WL_nid:%d):%d\n",max_WL_nid,group_max_wl);
         for (auto nid=g->begin(); nid!=g->end(); nid++) {
             auto n = &net_list.at(*nid);
             n->slack_wirelength = group_max_wl - n->ER_routed_wirelength - n->AR_routed_wirelength;
@@ -5859,7 +6228,7 @@ void GR::update_total_wl(int layer ) {
 void GR::add_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer) {
     auto cluster = &_GR_unit.at(c_idx);
     for (auto coor_his=_GR_unit.at(c_idx).history_path_record.begin();coor_his!=_GR_unit.at(c_idx).history_path_record.end();coor_his++) {
-        coarse_GRcell.at(layer).at(coor_his->first.x).at(coor_his->first.y).history_cost = coor_his->second*0.6;
+        coarse_GRcell.at(layer).at(coor_his->first.x).at(coor_his->first.y).history_cost = coor_his->second*0.1;
     }
 }
 void GR::remove_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer) {
@@ -5882,4 +6251,480 @@ void GR::print_map_cluster(int layer) {
     for (int x=0; x<coarse_GRcell.at(layer).size(); x++)
         printf("%2d ",x);
 
+}
+
+void GR::update_forbidden_edge(Cluster & cluster) {
+    printf("update_forbidden_edge\n");
+    //start idx:1
+    int z(cluster.start.z);
+    int hor_edge_num = (coarse_x_size-1)*coarse_y_size;
+    int ver_edge_num = coarse_x_size*(coarse_y_size-1);
+    int RT_edge_num = (coarse_x_size-1)*(coarse_y_size-1);
+    int RB_edge_num = (coarse_x_size-1)*(coarse_y_size-1);
+    int stage1 = hor_edge_num;
+    int stage2 = hor_edge_num+ver_edge_num;
+    int stage3 = hor_edge_num+ver_edge_num+RT_edge_num;
+    int CW_tag=cluster.cluster_relative_idx+1;
+    int CCW_tag=(cluster.cluster_relative_idx+1)*(-1);
+    cluster.CW_fbd_edge.clear();
+    cluster.CCW_fbd_edge.clear();
+    for (auto CW_coor=cluster.CW_path.begin();  CW_coor!=cluster.CW_path.end(); CW_coor++) {
+        coarse_GRcell.at(CW_coor->z).at(CW_coor->x).at(CW_coor->y).cluster = CW_tag;
+    }
+    for (auto CCW_coor=cluster.CCW_path.begin();  CCW_coor!=cluster.CCW_path.end(); CCW_coor++) {
+        coarse_GRcell.at(CCW_coor->z).at(CCW_coor->x).at(CCW_coor->y).cluster = CCW_tag;
+    }
+
+
+
+    for (auto s=cluster.path.begin(); s!=cluster.path.end(); s++) {
+        auto m=s; m++;
+        if (m == cluster.path.end())
+            break;
+        auto t=s; t++;  t++;
+        if (t == cluster.path.end())
+            break;
+        // if (cluster.cluster_relative_idx==4 &&z==0){
+        //     printf("s:(%d,%d) m:(%d,%d) t(%d,%d)\n",s->x,s->y, m->x,m->y, t->x,t->y);
+        // }
+        int x_dist = abs(s->x-t->x);
+        int y_dist = abs(s->y-t->y);
+        int x_diff = t->x-s->x;
+        int y_diff = t->y-s->y;
+        bool CW_side(false);
+        if (x_dist!=1 || y_dist!=1) 
+            continue;
+        //x_dist==1 && y_dist==1
+        if (x_diff*y_diff==1) {
+            if (x_diff==1){ // RT
+                int edge_idx = stage2+s->y*(coarse_x_size-1)+s->x;
+                if (m->y==s->y) {//__|
+                    if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {// __t
+                        //  s__|
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==coarse_x_size-1) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.end.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.end.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.start.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.start.y) {
+                                    printf("update_forbidden_edge RT wrong\n");
+                                    return;
+                                }
+                            }
+                        }
+                        else {
+                            decide_coor.x+=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+                else {//__
+                    // |
+                    if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {//  __t
+                        //  s|__
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==0) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.end.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.end.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.start.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.start.y)
+                                    printf("update_forbidden_edge TR wrong\n");
+                            }
+                        }
+                        else {
+                            decide_coor.x-=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+            }
+            else {//LB
+                int edge_idx = stage2+t->y*(coarse_x_size-1)+t->x;
+                if (cluster.cluster_relative_idx==10 &&z==0){
+                    printf("Left Bot  x:%d y:%d\n",t->x,t->y);
+                    printf("s:(%d,%d) m:(%d,%d) t(%d,%d)\n",s->x,s->y, m->x,m->y, t->x,t->y);
+                }
+                if (m->y==s->y) {//__s
+                //               t|
+                    if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {//  __s
+                        //  t|__
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==0) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.start.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.start.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.end.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.end.y) {
+                                    printf("update_forbidden_edge RT wrong\n");
+                                    return;
+                                }
+                            }
+                        }
+                        else {
+                            decide_coor.x-=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+                else {//  s
+                    // t__|
+                    if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CW_tag) {
+                        if (cluster.cluster_relative_idx==11 &&z==0){
+                            printf("test pass\n");
+                        }
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {//  __s
+                        //   t__|m
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==coarse_x_size-1) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y-=1;
+                                if (decide_coor.y<cluster.end.y)
+                                    break;
+                            }
+                            if (decide_coor.y<cluster.end.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y+=1;
+                                if (decide_coor.y>cluster.start.y)
+                                    break;
+                                }
+                                if (decide_coor.y>cluster.start.y)
+                                    printf("update_forbidden_edge TR wrong\n");
+                            }
+                        }
+                        else {
+                            decide_coor.x+=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            if (x_diff==1){ // Right Bot
+                int edge_idx = stage3+t->y*(coarse_x_size-1)+s->x;
+                // if (cluster.cluster_relative_idx==10 &&z==0){
+                //     printf("Right Bot  x:%d y:%d\n",s->x,t->y);
+                //     printf("s:(%d,%d) m:(%d,%d) t(%d,%d)\n",s->x,s->y, m->x,m->y, t->x,t->y);
+                // }
+                    
+                                // s__m
+                if (m->y==s->y) {//   |t
+                    if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {// s__m
+                        //    __|t
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==coarse_x_size-1) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.start.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.start.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.end.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.end.y) {
+                                    printf("update_forbidden_edge RT wrong\n");
+                                    return;
+                                }
+                            }
+                        }
+                        else {
+                            decide_coor.x+=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }//      s
+                else {//m|__t
+                    // if (cluster.cluster_relative_idx==0 &&z==0){
+                    //     printf("(%d,%d,%d) tag:%d CW_tag:%d  CCW_tag:%d\n",s->z,s->x+1,s->y,
+                    //     coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster,CW_tag,CCW_tag);
+                    // }
+                    if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {// s __
+                        //   m|__t
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==0) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.start.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.start.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.end.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.end.y)
+                                    printf("update_forbidden_edge TR wrong\n");
+                            }
+                        }
+                        else {
+                            decide_coor.x-=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+            }
+            else {//Left Top
+                int edge_idx = stage3+s->y*(coarse_x_size-1)+t->x;
+                if (m->y==s->y) {//  t
+                //                  m|__s
+                    if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {// t__
+                        //  m|__s
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==0) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.end.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.end.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.start.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.start.y) {
+                                    printf("update_forbidden_edge RT wrong\n");
+                                    return;
+                                }
+                            }
+                        }
+                        else {
+                            decide_coor.x-=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+                else {//t__m
+                    //     |s
+                    if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CW_tag) {
+                        cluster.CW_fbd_edge.insert(edge_idx);
+                        CW_side=true;
+                    }
+                    else if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CCW_tag){
+                        cluster.CCW_fbd_edge.insert(edge_idx);
+                    }
+                    else {//  t__m
+                        //     __|s
+                        Coor decide_coor(m->z,m->x,m->y);
+                        if (decide_coor.x==coarse_x_size-1) {
+                            while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                   coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                decide_coor.y+=1;
+                                if (decide_coor.y>cluster.end.y)
+                                    break;
+                            }
+                            if (decide_coor.y>cluster.end.y){
+                                decide_coor = *m;
+                                while (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CW_tag &&
+                                    coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster!=CCW_tag){
+                                    decide_coor.y-=1;
+                                if (decide_coor.y<cluster.start.y)
+                                    break;
+                                }
+                                if (decide_coor.y<cluster.start.y)
+                                    printf("update_forbidden_edge TR wrong\n");
+                            }
+                        }
+                        else {
+                            decide_coor.x+=1;
+                        }
+                        if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CW_tag) {
+                            cluster.CCW_fbd_edge.insert(edge_idx);
+                        }
+                        else if (coarse_GRcell.at(decide_coor.z).at(decide_coor.x).at(decide_coor.y).cluster==CCW_tag){
+                            cluster.CW_fbd_edge.insert(edge_idx);
+                            CW_side=true;
+                        }
+                    }
+                }
+            }
+        }
+        t++;
+        if (t != cluster.path.end()) {
+            if (cluster.cluster_relative_idx==10 &&z==0){
+                printf("s(%d,%d) t(%d,%d)\n",s->x,s->y,t->x,t->y);
+            }
+            x_dist = abs(t->x - s->x);
+            y_dist = abs(t->y - s->y);
+            x_diff = t->x - s->x;
+            y_diff = t->y - s->y;
+            int edge_idx;
+            if (x_dist==0 && y_dist==1) {
+                if (y_diff==1) {
+                    edge_idx = stage1+s->y*(coarse_x_size)+t->x;
+                }
+                else {
+                    edge_idx = stage1+t->y*(coarse_x_size)+t->x;
+                }
+            }
+            else if (x_dist==1 && y_dist==0) {
+                if (x_diff==1) {
+                    edge_idx = t->y*(coarse_x_size-1)+s->x;
+                }
+                else {
+                    edge_idx = t->y*(coarse_x_size-1)+t->x;
+                }
+            }
+            if (CW_side) {
+                cluster.CW_fbd_edge.insert(edge_idx);
+            }
+            else 
+                cluster.CCW_fbd_edge.insert(edge_idx);
+        }
+
+        
+        // else if (x_dist==1) {
+        //     printf("acute angle\n");X
+        // }
+        // else if (y_dist==1) {
+        //     printf("acute angle\n");X
+        // }
+    }
+
+
+
+    for (auto CW_coor=cluster.CW_path.begin();  CW_coor!=cluster.CW_path.end(); CW_coor++) {
+        coarse_GRcell.at(CW_coor->z).at(CW_coor->x).at(CW_coor->y).cluster = -1;
+    }
+    for (auto CCW_coor=cluster.CCW_path.begin();  CCW_coor!=cluster.CCW_path.end(); CCW_coor++) {
+        coarse_GRcell.at(CCW_coor->z).at(CCW_coor->x).at(CCW_coor->y).cluster = -1;
+    }
 }

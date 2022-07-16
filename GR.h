@@ -12,6 +12,7 @@ extern int coarse_x_length;
 extern int coarse_y_length;
 extern int fine_x_length;
 extern int fine_y_length;
+extern bool cycle_ddr;
 extern double pitch_extend_coe;
 class GR
 {
@@ -21,6 +22,7 @@ public:
     int can_use_layer_num;
     int coarse_x_size, coarse_y_size;
     int fine_x_size, fine_y_size;
+
     std::string file_name;
     Boundary total_boundary;
     std::string CPU_name;
@@ -78,6 +80,8 @@ public:
     GR();
     Pin* get_cpupin(const Net& n);
     Pin* get_ddrpin(const Net& n);
+    void rotate_ddr();
+    void birotate_ddr();
     void Global_routing();
     void Global_routing(std::vector<int>& GR_net);
     void update_cell_demand(int, Cell&, Coor , Boundary);
@@ -106,7 +110,6 @@ public:
     void add_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void remove_forbidden_region(int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void AR_RSRC_allocate(std::string filename);
-    void AR_RSRC_allocate(int layer, std::string filename);
     bool RSRC_allocate_fail();
     void ripup_cluster(bool AstarFail, int c_idx, std::vector<Cluster>& _GR_unit, bool coarse);
     void update_total_wl();
@@ -116,6 +119,7 @@ public:
     void add_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer);
     void remove_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer);
     void print_map_cluster(int layer);
+    void update_forbidden_edge(Cluster & cluster);
 };
 
 

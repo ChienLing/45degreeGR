@@ -18,7 +18,7 @@ bool Satisfiable(std::string &sat_out);
 std::map<int,Detour_info> Load_MAXSAT_Output(const std::map<int,std::vector<std::pair<Detour_info,Detour_info>>>& coarse_detour_info, const std::map<int,int>& ID_restnet);
 void output_ideal_lp(int layer, std::string output_name, std::map<int,Edge> edge_table, std::vector<Cluster>& GR_unit, std::map<int, std::vector<Segment>>& seg_list, std::vector<Net>& net_list);
 void output_passable_lp(int layer, std::string output_name, std::map<int,Edge> edge_table, std::vector<Cluster>& GR_unit, std::map<int,std::vector<Segment>>& seg_list, std::vector<Net>& net_list);
-bool Load_ideal_LP_Output(std::string sol_file_name, std::map<int,std::vector<Segment>>& seg_list);
-std::vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, std::map<int,std::vector<Segment>>& seg_list);
+bool Load_ideal_LP_Output(std::string sol_file_name, std::map<int,std::vector<Segment>>& seg_list, std::vector<Cluster>& _GR_unit);
+std::vector<int> Load_passable_LP_Output(int layer, std::string sol_file_name, std::map<int,std::vector<Segment>>& seg_list, std::vector<Cluster>& _GR_unit);
 void output_SER(GR* router, std::string file_name);
 #endif
