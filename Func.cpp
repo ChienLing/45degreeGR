@@ -147,7 +147,7 @@ bool Bdy_greater_x (const Boundary _b1, const Boundary _b2) {
 bool Bdy_less_y (const Boundary _b1, const Boundary _b2) {
     return _b1.bot > _b2.bot;
 }
-bool Bdy_greater_y (const Boundary _b1, const Boundary _b2) {
+bool Bdy_greater_y (Boundary const & _b1, Boundary const & _b2) {
     return _b1.bot < _b2.bot;
 }
 

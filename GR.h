@@ -22,12 +22,13 @@ public:
     int can_use_layer_num;
     int coarse_x_size, coarse_y_size;
     int fine_x_size, fine_y_size;
-
+    int fail_data_net_num;
     std::string file_name;
     Boundary total_boundary;
     std::string CPU_name;
     std::vector<std::string> DDR_name;
     std::map<std::string,Boundary> comp_boundary;
+    std::map<std::string,Boundary> unrotate_comp_boundary;
     std::map<std::string,int> ddr_escape;
     std::map<std::string,int> cpu_escape;
     std::map<std::string,int> CPU_AR_shift;
@@ -41,9 +42,11 @@ public:
     std::vector<std::string> layer_list;
     std::vector<std::vector<int>> group_list;
     std::vector<std::map<int,std::vector<Segment>>> seg_list;
+    std::map<std::string,DDR> DDR_list;
     std::vector<std::vector<int>> ripuped_cluster;
 
     std::vector<std::vector<int>> all_net;
+    std::vector<int> rest_DATA_net;
     std::vector<std::vector<int>> merged_groupID;//big group:small group ID
     std::vector<std::vector<int>> merged_group;//new group:netID
     std::vector<std::vector<int>> merged_group_by_ddr;//new group:netID
@@ -120,6 +123,8 @@ public:
     void remove_history_cost(std::vector<Cluster>& _GR_unit, int c_idx, int layer);
     void print_map_cluster(int layer);
     void update_forbidden_edge(Cluster & cluster);
+    void rotate_pin(const std::map<std::string, std::vector<int>>& comp_ddr_pin);
+    void reply_pin();
 };
 
 

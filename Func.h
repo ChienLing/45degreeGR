@@ -68,7 +68,7 @@ bool pin_greater_y (const Pin* _p1, const Pin* _p2) ;
 bool Bdy_less_x (const Boundary _b1, const Boundary _b2);
 bool Bdy_greater_x (const Boundary _b1, const Boundary _b2);
 bool Bdy_less_y (const Boundary _b1, const Boundary _b2);
-bool Bdy_greater_y (const Boundary _b1, const Boundary _b2);
+bool Bdy_greater_y (Boundary const & _b1, Boundary const & _b2);
 std::pair<std::vector<std::pair<int,int>>,std::vector<std::pair<int,int>>> 
                     LCS(const std::vector<std::vector<int>>& v1, const std::vector<std::vector<int>>& v2, 
                         const std::vector<std::pair<int,int>>& dp_list, std::vector<int>& ED_table1,std::vector<int>& ED_table2, std::vector<int>& location1, std::vector<int>& location2);

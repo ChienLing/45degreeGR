@@ -1,10 +1,12 @@
 #include "Structure.h"
 using namespace std;
 Pin::Pin():pin_ID(-1), net_ID(-1), CPU_side(false),ignore(false){}
-Pin::Pin(int pID, int nID, std::pair<int,int> p, std::string pName, std::string nName, std::string cName):  \
+Pin::Pin(int pID, int nID, std::pair<int,int> p1, std::pair<int,int> p2, std::string pName, std::string nName, std::string cName):  \
                        pin_ID(pID), net_ID(nID), pin_name(pName), net_name(nName), comp_name(cName), CPU_side(false),ignore(false) {
-    real_pos.X=p.X;
-    real_pos.Y=p.Y;
+    real_pos.X=p1.X;
+    real_pos.Y=p1.Y;
+    un_rotate_pos.X=p2.X;
+    un_rotate_pos.Y=p2.Y;
     escape_dir=-1;
 }
 void Pin::change_pos(int x, int y){

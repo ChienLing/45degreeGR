@@ -218,6 +218,12 @@ void GR::planning() {
             }
         }
     }
+    for (auto comp=comp_ddr_pin.begin(); comp!=comp_ddr_pin.end(); comp++) {
+        DDR_list[comp->first].name = comp->first;
+        DDR_list[comp->first].DATA_pins = comp->second;
+    }
+    rotate_pin(comp_ddr_pin);
+    // return;
     //deal with CPU
     for (auto ddr=comp_cpu_pin.begin(); ddr!=comp_cpu_pin.end(); ddr++) {
         // printf("idx: %d\n",idx);
@@ -394,25 +400,25 @@ void GR::planning() {
 
     int pitch = MIN_SPACING+WIRE_WIDTH;
     for (auto ddr_name=DDR_name.begin(); ddr_name!=DDR_name.end(); ddr_name++) {
-        if (ddr_escape.at(*ddr_name) == TOP) {
+        if (ddr_escape.at(*ddr_name) == TOP && !DDR_list.at(*ddr_name).rotate) {
             int top_y_coor=(comp_boundary.at(*ddr_name).top-total_boundary.bot)/coarse_y_length;
             int top_y_pos = (top_y_coor+1)*coarse_y_length+total_boundary.bot;
             if (top_y_pos - comp_boundary.at(*ddr_name).top < 2*pitch)  
                 DDR_AR_shift[*ddr_name] = 1;
         }
-        else if (ddr_escape.at(*ddr_name) == BOT) {
+        else if (ddr_escape.at(*ddr_name) == BOT && !DDR_list.at(*ddr_name).rotate) {
             int bot_y_coor=(comp_boundary.at(*ddr_name).bot-total_boundary.bot)/coarse_y_length;
             int bot_y_pos = (bot_y_coor)*coarse_y_length+total_boundary.bot;
             if (comp_boundary.at(*ddr_name).bot - bot_y_pos < 2*pitch)  
                 DDR_AR_shift[*ddr_name] = -1;
         }
-        else if (ddr_escape.at(*ddr_name) == RIGHT) {
+        else if (ddr_escape.at(*ddr_name) == RIGHT && !DDR_list.at(*ddr_name).rotate) {
             int right_x_coor=(comp_boundary.at(*ddr_name).right-total_boundary.left)/coarse_x_length;
             int right_x_pos = (right_x_coor+1)*coarse_x_length+total_boundary.left;
             if (right_x_pos - comp_boundary.at(*ddr_name).right < 2*pitch)  
                 DDR_AR_shift[*ddr_name] = 1;
         }
-        else if (ddr_escape.at(*ddr_name) == LEFT) {
+        else if (ddr_escape.at(*ddr_name) == LEFT && !DDR_list.at(*ddr_name).rotate) {
             int left_x_coor=(comp_boundary.at(*ddr_name).left-total_boundary.left)/coarse_x_length;
             int left_x_pos = (left_x_coor)*coarse_x_length+total_boundary.left;
             if (comp_boundary.at(*ddr_name).left - left_x_pos < 2*pitch)  
@@ -455,7 +461,7 @@ void GR::planning() {
 }        
 
 void GR::partition() {
-    planning();
+    planning(); //return;
     // partition_by_position(); 
     // partition_by_size();
     vector<int> temp;
@@ -529,7 +535,8 @@ void GR::partition() {
         }
     }
 
-
+    fail_data_net_num = rest_of_net.at(0).size();
+    rest_DATA_net = rest_of_net.at(0);
     update_escape_routing_length();
     insert_rest_of_net(rest_of_net);
     for (auto nid=rest_of_net.at(0).begin(); nid!=rest_of_net.at(0).end(); nid++) {
@@ -625,6 +632,11 @@ vector<vector<pair<vector<pair<int,int>>,vector<pair<int,int>>>>> GR::partition_
             ddr_order.clear();             
             ddr_order=new_ddr_order;   
         }
+        printf("new ddr order: ");
+        for (auto ddr=ddr_order.begin(); ddr!=ddr_order.end(); ddr++) {
+            printf("%s ",ddr->c_str());
+        }
+        printf("\n");
         for (auto ddr=ddr_order.begin(); ddr!=ddr_order.end(); ddr++) {
             
             /*printf("list1: ");
@@ -1532,7 +1544,7 @@ Path_node GR::Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>& GR_uni
                   cout<<"best pn esti wrong\n";
             break;
         }
-        if (idx>250000) { //&& best_pn.esti_routing_length==0
+        if (idx>350000) { //&& best_pn.esti_routing_length==0
             printf("Astar no solution\n");
             break;
         }
@@ -1924,8 +1936,8 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
     int c_idx = cluster.cluster_relative_idx;
     double x_dist = abs(cluster.start.x-cluster.end.x);
     double y_dist = abs(cluster.start.y-cluster.end.y);
-    double low_bound_WL = cluster.max_slack<0.6*coarse_x_length?0:cluster.last_AR_routed_WL+(cluster.max_slack/coarse_x_length)/cluster.last_AR_routed_WL+cluster.ripup_num*0.1;
-    double upper_bound_WL = cluster.max_slack<0.6*coarse_x_length?cluster.last_AR_routed_WL+1:cluster.last_AR_routed_WL+cluster.max_slack/coarse_x_length+2;
+    double low_bound_WL = cluster.max_slack<0.6*coarse_x_length?0:cluster.last_AR_routed_WL+(cluster.max_slack/coarse_x_length)/cluster.last_AR_routed_WL-cluster.ripup_num*0.1;
+    double upper_bound_WL = cluster.max_slack<0.6*coarse_x_length?cluster.last_AR_routed_WL:cluster.last_AR_routed_WL+(double)cluster.max_slack/coarse_x_length;
     int hor_edge_num = (coarse_x_size-1)*coarse_y_size;
     int ver_edge_num = coarse_x_size*(coarse_y_size-1);
     int RT_edge_num = (coarse_x_size-1)*(coarse_y_size-1);
@@ -1937,7 +1949,8 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         printf("%d  ",*it);
     }
      printf("||||||||||||||||\n");
-     printf("low_bound_WL:%f upper_bound_WL:%f\n ",low_bound_WL,upper_bound_WL);
+     printf("slack:%d  last ARWL:%f\n",cluster.max_slack,cluster.last_AR_routed_WL);
+     printf("low_bound_WL:%f upper_bound_WL:%f \n ",low_bound_WL,upper_bound_WL);
     if (c_idx==4)
         printf("cluster.max_slack:%d  last_AR_WL:%f ripup_num:%d\n",cluster.max_slack, cluster.last_AR_routed_WL,cluster.ripup_num);
     // if (c_idx == 12 || c_idx == 14)
@@ -2653,7 +2666,7 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
             // printf("\n");
             Astar_num++;
             printf("Astar_num:%d  layer:%d\n\n",Astar_num,layer);
-            if(Astar_num>500 )
+            if(Astar_num>100 )
                 break;
         }
         while(!QC.empty()){
@@ -2904,16 +2917,16 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
                 printf("\n=>layer:%d reroute c:%d max slack:%d -> %d\n\n",layer,cluster->cluster_relative_idx, old_max_slack, cluster->max_slack);
                 printf("Astar_Num:%d\n",Astar_num);
                 Astar_num++;
-                if (cluster->cluster_relative_idx==8) {
-                    printf("coarse_GRcell.at(0).at(5).at(16).edge_r :%f!!!!!!!!!!\n",coarse_GRcell.at(0).at(5).at(16).edge_r[RIGHT]);
-                    // return;
-                }
-                if (Astar_num>5000)
+                // if (cluster->cluster_relative_idx==8) {
+                //     printf("coarse_GRcell.at(0).at(5).at(16).edge_r :%f!!!!!!!!!!\n",coarse_GRcell.at(0).at(5).at(16).edge_r[RIGHT]);
+                //     // return;
+                // }
+                if (Astar_num>8000)
                     break;
             }
             while(!QC.empty()){
                 Cluster* cluster=QC.top();     QC.pop();
-                printf("LMaware layer:%d routing fail cluster:%d\n",layer,cluster->cluster_relative_idx);
+                printf("round %d LMaware layer:%d routing fail cluster:%d\n",round,layer,cluster->cluster_relative_idx);
             }
                 //這邊要從slack值太大的開始重繞，使用可以貼近slack值的Astar而非最低cost的版本
             // for (auto c_idx=ripuped_cluster.at(layer).begin(); c_idx!=ripuped_cluster.at(layer).end(); c_idx++) {
@@ -2944,80 +2957,6 @@ Path_node GR::LMaware_Astar(vector<vector<vector<Cell>>>& GRmap, vector<Cluster>
         // break;
     }
     /**/
-
-
-    /*
-    auto slack_pri = [](const Cluster* c1, const Cluster* c2) {
-        return c1->max_slack < c2->max_slack;
-    };
-    for (layer=0; layer<can_use_layer_num; layer++) {
-        priority_queue<Cluster*,vector<Cluster*>,decltype(slack_pri)> QC(slack_pri);
-        printf("slack priority queue layer:%d\n",layer);
-        for (auto c_idx=0; c_idx<GR_unit.at(layer).size(); c_idx++) {
-            if (GR_unit.at(layer).at(c_idx).max_slack > 2*slack_tol) {
-            // printf("GR_unit.at(%d).at(%d).max_slack:%d\n", layer, c_idx, GR_unit.at(layer).at(c_idx).max_slack);
-                ripup_cluster(c_idx,GR_unit.at(layer),true);
-                QC.push(&GR_unit.at(layer).at(c_idx));
-            }
-        }
-        while(!QC.empty()) {
-            Cluster* cluster=QC.top();     QC.pop();
-            printf("layer:%d reroute c:%d max slack:%d\n",layer,cluster->cluster_relative_idx, cluster->max_slack);
-            // if (cluster->max_slack < 2*coarse_x_length)
-            //     break;
-            add_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
-            Path_node pn=LMaware_Astar(coarse_GRcell,GR_unit.at(layer), *cluster, true);
-            cluster->path = pn.path;
-            remove_forbidden_region(cluster->cluster_relative_idx,GR_unit.at(layer),true);
-            if (!pn.path.empty())
-                update_forbidden_region(coarse_GRcell,*cluster,true);
-            else { //rip up
-                printf("1. rip up layer:%d cluster idx:%d \n",layer, cluster->cluster_relative_idx);
-                ripup_cluster(cluster->cluster_relative_idx,GR_unit.at(layer),true);
-                printf("CCW:%d  CW:%d \n",cluster->CCW_idx,cluster->CW_idx);
-                QC.push(&GR_unit.at(layer).at(cluster->cluster_relative_idx));
-                if (cluster->CCW_idx!=-1 && GR_unit.at(layer).at(cluster->CCW_idx).route_order < GR_unit.at(layer).at(cluster->CW_idx).route_order) {
-                    
-                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CCW_idx);
-                    ripup_cluster(cluster->CCW_idx,GR_unit.at(layer),true);
-                    QC.push(&GR_unit.at(layer).at(cluster->CCW_idx));
-                }
-                else if (cluster->CW_idx!=-1) {
-                    printf("2.rip up layer:%d cluster idx:%d \n",layer, cluster->CW_idx);
-                    ripup_cluster(cluster->CW_idx,GR_unit.at(layer),true);
-                    QC.push(&GR_unit.at(layer).at(cluster->CW_idx));
-                }
-                printf("rip up end\n");
-            }
-            printf("\n=>layer:%d reroute c:%d max slack:%d\n\n",layer,cluster->cluster_relative_idx, cluster->max_slack);
-        }
-            //這邊要從slack值太大的開始重繞，使用可以貼近slack值的Astar而非最低cost的版本
-    }
-    // return;
-    */
-
-    /*printf("AR_RSRC_allocate (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
-    printf("\n");
-    layer = 0;
-    for (auto l=ripuped_cluster.begin(); l!=ripuped_cluster.end(); l++) {
-        if (l->size()==0)
-            continue;
-        for (auto c=l->begin(); c!=l->end(); c++){
-            if (*c == 10)
-                cout<<"break point\n";
-            ripup_cluster(*c,GR_unit.at(layer),true);
-            add_forbidden_region(*c,GR_unit.at(layer),true);
-            Path_node pn=Astar(coarse_GRcell,GR_unit.at(layer), GR_unit.at(layer).at(*c), true);
-            GR_unit.at(layer).at(*c).path = pn.path;
-            remove_forbidden_region(*c,GR_unit.at(layer),true);
-
-        }
-        update_total_wl(layer);
-        AR_RSRC_allocate(layer,file_name);
-        layer++;
-    }
-    printf("Before Global_routing END (0,6,7) edge_r=%f",coarse_GRcell.at(0).at(6).at(7).edge_r[LEFT]);
-    printf("\n");*/
     printf("Global_routing END\n");
 }
 
@@ -3490,17 +3429,36 @@ vector<string> GR::sort_ddr(const map<string, vector<Pin*>>& ddr_ddrpin) {
         vector<string> ddr_sort;
         map<int,vector<Boundary>> escape_dir_ddr;
         for (auto ddr=ddr_ddrpin.begin(); ddr!=ddr_ddrpin.end(); ddr++) {
+            printf("Dir:%d ddr name:%s comp bdy name:%s LB(%d,%d) RT(%d,%d)\n",ddr_escape.at(ddr->first),
+                                        ddr->first.c_str(),comp_boundary.at(ddr->first).name.c_str(),
+                                        comp_boundary.at(ddr->first).left,comp_boundary.at(ddr->first).bot,
+                                        comp_boundary.at(ddr->first).right,comp_boundary.at(ddr->first).top);
             escape_dir_ddr[ddr_escape.at(ddr->first)].push_back(comp_boundary.at(ddr->first));
         }
         for (auto dir=escape_dir_ddr.begin(); dir!=escape_dir_ddr.end(); dir++) {
+            printf("dir->first:%d\n",dir->first);
             if (dir->first==TOP) {
                 sort(dir->second.begin(), dir->second.end(), Bdy_less_x);
+                printf("After TOP sort\n");
+                for(auto ddr=dir->second.begin(); ddr!=dir->second.end(); ddr++) {
+                    printf("left:%d ",ddr->left);
+                }printf("\n");
             }
             else if (dir->first==BOT) {
                 sort(dir->second.begin(), dir->second.end(), Bdy_greater_x);
             }
             else if (dir->first==RIGHT) {
-                sort(dir->second.begin(), dir->second.end(), Bdy_greater_y);
+                printf("Before RIGHT sort\n");
+                for(auto ddr=dir->second.begin(); ddr!=dir->second.end(); ddr++) {
+                    printf("%s bot:%d top:%d ",ddr->name.c_str(),ddr->bot,ddr->top);
+                }
+                printf("\n");
+                sort(dir->second.begin(), dir->second.end(), &Bdy_greater_y);
+                printf("After RIGHT sort\n");
+                for(auto ddr=dir->second.begin(); ddr!=dir->second.end(); ddr++) {
+                    printf("%s bot:%d top:%d ",ddr->name.c_str(),ddr->bot,ddr->top);
+                }
+                printf("\n");
             }
             else if (dir->first==LEFT) {
                 sort(dir->second.begin(), dir->second.end(), Bdy_less_y);
@@ -3510,15 +3468,20 @@ vector<string> GR::sort_ddr(const map<string, vector<Pin*>>& ddr_ddrpin) {
             }
         }
         for (auto dir=escape_dir_ddr.begin(); dir!=escape_dir_ddr.end(); dir++) {
+            // printf("dir:%d  \n",dir->first);
             for (auto ddr=dir->second.begin(); ddr!=dir->second.end(); ddr++) {
+                // printf("%s(left:%d) ",ddr->name.c_str(),ddr->left);
+                // printf("%s(bot:%d) \n",ddr->name.c_str(),ddr->bot);
                 ddr_sort.push_back(ddr->name);
             }
+            // printf("\n");
         }
+        // exit(1);
         printf("ddr order: ");
         for (int i=0; i<ddr_sort.size(); i++) {
             printf("%s ",ddr_sort.at(i).c_str());
             // if (ddr_yx_bdy.at(i)!=ddr_xy_bdy.at(i))
-            //     printf("ddr order need chech!!!\n");
+                // printf("ddr order need chech!!!\n");
         }
         printf("\n");
         return ddr_sort;
@@ -4113,7 +4076,7 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
             int detour_dist(1e8);
             int layer(0);
             for (auto sub_g=rest_net->second.begin(); sub_g!=rest_net->second.end(); sub_g++) {//layer
-                printf ("layer %d\n",layer);
+                printf ("\nlayer %d\n",layer);
                 Boundary cpu_detour_region(cpu_p->real_pos.X,cpu_p->real_pos.Y,cpu_p->real_pos.X,cpu_p->real_pos.Y),ddr_detour_region(ddr_p->real_pos.X,ddr_p->real_pos.Y,ddr_p->real_pos.X,ddr_p->real_pos.Y);
                 int cpu_dist_x(0), cpu_dist_y(0), ddr_dist_x(0), ddr_dist_y(0);
                 Coor cpu_fanout(layer,cpu_p->real_pos.X, cpu_p->real_pos.Y), ddr_fanout(layer,ddr_p->real_pos.X, ddr_p->real_pos.Y);
@@ -4259,7 +4222,7 @@ void GR::insert_rest_of_net(const vector<vector<int>>& rest_of_net) {
                 int dd2 = coarse_detour_info.at(idx_g)[rest_net->first].back().second.detour_dist;
                 restnet_line.at(layer)[rest_net->first].first = Line(rest_net->first,false, dd1,{cpu_fanout.x,cpu_fanout.y},ddr_p->fanout_pos);
                 restnet_line.at(layer)[rest_net->first].second = Line(rest_net->first,true, dd2,cpu_p->fanout_pos,{ddr_fanout.x,ddr_fanout.y});
-                printf("layer:%d net:%d CPU detour Line:(%d,%d)-(%d,%d)  DDR detour Line(%d,%d)-(%d,%d)\n",layer,rest_net->first,
+                printf("layer:%d net:%d CPU detour Line:(%d,%d)-(%d,%d)  DDR detour Line(%d,%d)-(%d,%d)\n\n",layer,rest_net->first,
                                                 cpu_fanout.x,cpu_fanout.y,ddr_p->fanout_pos.X, ddr_p->fanout_pos.Y,
                                                 cpu_p->fanout_pos.X,cpu_p->fanout_pos.Y,ddr_fanout.x,ddr_fanout.y);
                 layer++;
@@ -6274,6 +6237,9 @@ void GR::update_forbidden_edge(Cluster & cluster) {
     for (auto CCW_coor=cluster.CCW_path.begin();  CCW_coor!=cluster.CCW_path.end(); CCW_coor++) {
         coarse_GRcell.at(CCW_coor->z).at(CCW_coor->x).at(CCW_coor->y).cluster = CCW_tag;
     }
+    for (auto coor=cluster.path.begin();  coor!=cluster.path.end(); coor++) {
+        coarse_GRcell.at(coor->z).at(coor->x).at(coor->y).cluster = 1000;
+    }
 
 
 
@@ -6709,7 +6675,58 @@ void GR::update_forbidden_edge(Cluster & cluster) {
             else 
                 cluster.CCW_fbd_edge.insert(edge_idx);
         }
+        /*t++;
+        while (t != cluster.path.end()) {
+            x_dist = abs(t->x - s->x);
+            y_dist = abs(t->y - s->y);
+            x_diff = t->x - s->x;
+            y_diff = t->y - s->y;
+            if (x_dist>1 || y_dist>1 )
+            continue;
+            // if (x_dist==1 && y_dist==1) {
+            //     if (x_diff*y_diff==1) {
+            //         if ()
+            //     }
+            //     else {
 
+            //     }
+            // }
+            else if (x_dist == 1) {
+                int edge_idx = s->y*(coarse_x_size-1) + s->x;
+                if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CW_tag) {
+                    cluster.CW_fbd_edge.insert(edge_idx);
+                    CW_side=true;
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CW_tag) {
+                    cluster.CW_fbd_edge.insert(edge_idx);
+                    CW_side=true;
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x).at(s->y+1).cluster==CCW_tag) {
+                    cluster.CCW_fbd_edge.insert(edge_idx);
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x).at(s->y-1).cluster==CCW_tag) {
+                    cluster.CCW_fbd_edge.insert(edge_idx);
+                }
+            }
+            else if (y_diff==1) {
+                int edge_idx = stage1+s->y*(coarse_x_size) + s->x;
+                if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CW_tag) {
+                    cluster.CW_fbd_edge.insert(edge_idx);
+                    CW_side=true;
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CW_tag) {
+                    cluster.CW_fbd_edge.insert(edge_idx);
+                    CW_side=true;
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x+1).at(s->y).cluster==CCW_tag) {
+                    cluster.CCW_fbd_edge.insert(edge_idx);
+                }
+                else if (coarse_GRcell.at(s->z).at(s->x-1).at(s->y).cluster==CCW_tag) {
+                    cluster.CCW_fbd_edge.insert(edge_idx);
+                }
+            }
+            t++;
+        }*/
         
         // else if (x_dist==1) {
         //     printf("acute angle\n");X
@@ -6726,5 +6743,152 @@ void GR::update_forbidden_edge(Cluster & cluster) {
     }
     for (auto CCW_coor=cluster.CCW_path.begin();  CCW_coor!=cluster.CCW_path.end(); CCW_coor++) {
         coarse_GRcell.at(CCW_coor->z).at(CCW_coor->x).at(CCW_coor->y).cluster = -1;
+    }
+    for (auto coor=cluster.path.begin();  coor!=cluster.path.end(); coor++) {
+        coarse_GRcell.at(coor->z).at(coor->x).at(coor->y).cluster = -1;
+    }
+}
+
+void GR::rotate_pin(const map<string, vector<int>>& comp_ddr_pin) {
+    printf("rotate pin start!!!!!!!\n");
+    unrotate_comp_boundary = comp_boundary;
+    for (auto comp=comp_ddr_pin.begin(); comp!=comp_ddr_pin.end(); comp++) {
+        printf("%s original boundary:(%d,%d)-(%d,%d)\n",comp->first.c_str(),comp_boundary.at(comp->first).left,comp_boundary.at(comp->first).bot,
+                    comp_boundary.at(comp->first).right,comp_boundary.at(comp->first).top);
+    }
+    for (auto comp=comp_ddr_pin.begin(); comp!=comp_ddr_pin.end(); comp++) {
+        map<int,vector<int>> line_pin;
+        for (auto pid=comp->second.begin(); pid!=comp->second.end(); pid++) {
+            int c=pin_list.at(*pid).real_pos.X+pin_list.at(*pid).real_pos.Y;
+            bool insert(false);
+            for (auto line=line_pin.begin(); line!=line_pin.end(); line++) {
+                if (abs(c-line->first) < tolerance*1.4) {
+                    insert = true;
+                    line->second.push_back(*pid);
+                }
+            }
+            if (!insert)
+                line_pin[c].push_back(*pid);
+        }
+        if (line_pin.size()==6) {
+            printf("rotate %s 45 degree \n",comp->first.c_str());
+            DDR_list.at(comp->first).rotate = true;
+            comp_boundary.at(comp->first).setup(1e8,1e8,0,0);
+            for (auto pid=comp->second.begin(); pid!=comp->second.end(); pid++) {
+                auto p=&pin_list.at(*pid);
+                pin_list.at(*pid).real_pos.X = 
+                    (pin_list.at(*pid).un_rotate_pos.X-unrotate_comp_boundary.at(comp->first).left)*(1/sqrt(2))+
+                    (pin_list.at(*pid).un_rotate_pos.Y-unrotate_comp_boundary.at(comp->first).bot)*(1/sqrt(2))
+                    +unrotate_comp_boundary.at(comp->first).left;
+                pin_list.at(*pid).real_pos.Y = 
+                    (-1)*(pin_list.at(*pid).un_rotate_pos.X-unrotate_comp_boundary.at(comp->first).left)*(1/sqrt(2))+
+                    (pin_list.at(*pid).un_rotate_pos.Y-unrotate_comp_boundary.at(comp->first).bot)*(1/sqrt(2))
+                    +unrotate_comp_boundary.at(comp->first).bot;
+                pin_list.at(*pid).coarse_coor.X = (pin_list.at(*pid).real_pos.X-total_boundary.left)/coarse_x_length;
+                pin_list.at(*pid).coarse_coor.Y = (pin_list.at(*pid).real_pos.Y-total_boundary.bot)/coarse_y_length;
+                if (p->real_pos.X<comp_boundary.at(comp->first).left)
+                    comp_boundary.at(comp->first).left = p->real_pos.X;
+                if (p->real_pos.Y<comp_boundary.at(comp->first).bot)
+                    comp_boundary.at(comp->first).bot = p->real_pos.Y;
+                if (p->real_pos.X>comp_boundary.at(comp->first).right)
+                    comp_boundary.at(comp->first).right = p->real_pos.X;
+                if (p->real_pos.Y>comp_boundary.at(comp->first).top)
+                    comp_boundary.at(comp->first).top = p->real_pos.Y;
+                // printf("net:%d (%d,%d)->(%d,%d)\n",p->net_ID,p->un_rotate_pos.X,p->un_rotate_pos.Y,
+                //                                    p->real_pos.X,p->real_pos.Y);
+            
+            }
+            printf("new %s comp boundary:(%d,%d)-(%d,%d)\n",comp->first.c_str(),comp_boundary.at(comp->first).left,
+                                                                                comp_boundary.at(comp->first).bot,
+                                                                                comp_boundary.at(comp->first).right,
+                                                                                comp_boundary.at(comp->first).top);
+            continue;
+        }
+        line_pin.clear();
+        for (auto pid=comp->second.begin(); pid!=comp->second.end(); pid++) {
+            int c=pin_list.at(*pid).real_pos.X-pin_list.at(*pid).real_pos.Y;
+            bool insert(false);
+            for (auto line=line_pin.begin(); line!=line_pin.end(); line++) {
+                if (abs(c-line->first) < tolerance*1.4) {
+                    insert = true;
+                    line->second.push_back(*pid);
+                }
+            }
+            if (!insert)
+                line_pin[c].push_back(*pid);
+        }
+        if (line_pin.size()==6) {
+            printf("rotate %s 45 degree \n",comp->first.c_str());
+            DDR_list.at(comp->first).rotate = true;
+            comp_boundary.at(comp->first).setup(1e8,1e8,0,0);
+
+            for (auto pid=comp->second.begin(); pid!=comp->second.end(); pid++) {
+                auto p=&pin_list.at(*pid);
+                pin_list.at(*pid).real_pos.X = 
+                    (pin_list.at(*pid).un_rotate_pos.X-unrotate_comp_boundary.at(comp->first).left)*(1/sqrt(2))+(pin_list.at(*pid).un_rotate_pos.Y-unrotate_comp_boundary.at(comp->first).bot)*(1/sqrt(2))
+                    +unrotate_comp_boundary.at(comp->first).left;
+                pin_list.at(*pid).real_pos.Y = 
+                    (-1)*(pin_list.at(*pid).un_rotate_pos.X-unrotate_comp_boundary.at(comp->first).left)*(1/sqrt(2))+(pin_list.at(*pid).un_rotate_pos.Y-unrotate_comp_boundary.at(comp->first).bot)*(1/sqrt(2))
+                    +unrotate_comp_boundary.at(comp->first).bot;
+                pin_list.at(*pid).coarse_coor.X = (pin_list.at(*pid).real_pos.X-total_boundary.left)/coarse_x_length;
+                pin_list.at(*pid).coarse_coor.Y = (pin_list.at(*pid).real_pos.Y-total_boundary.bot)/coarse_y_length;
+                if (p->real_pos.X<comp_boundary.at(comp->first).left)
+                    comp_boundary.at(comp->first).left = p->real_pos.X;
+                if (p->real_pos.Y<comp_boundary.at(comp->first).bot)
+                    comp_boundary.at(comp->first).bot = p->real_pos.Y;
+                if (p->real_pos.X>comp_boundary.at(comp->first).right)
+                    comp_boundary.at(comp->first).right = p->real_pos.X;
+                if (p->real_pos.Y>comp_boundary.at(comp->first).top)
+                    comp_boundary.at(comp->first).top = p->real_pos.Y;
+            }
+            continue;
+        }
+        printf("rotate %s 0 degree \n",comp->first.c_str());
+    }
+}
+void GR::reply_pin() {
+    for (auto ddr=DDR_list.begin(); ddr!=DDR_list.end(); ddr++) {
+        if (!ddr->second.rotate)
+            continue;
+        printf("reply comp %s boundary:(%d,%d)-(%d,%d)\n",ddr->first.c_str(),
+                                unrotate_comp_boundary.at(ddr->first).left,
+                                unrotate_comp_boundary.at(ddr->first).bot,
+                                unrotate_comp_boundary.at(ddr->first).right,
+                                unrotate_comp_boundary.at(ddr->first).top);
+        comp_boundary.at(ddr->first)=unrotate_comp_boundary.at(ddr->first);
+        for (auto pid=ddr->second.DATA_pins.begin(); pid!=ddr->second.DATA_pins.end(); pid++) {
+            auto p=&pin_list.at(*pid);
+            pin_list.at(*pid).real_pos = pin_list.at(*pid).un_rotate_pos;
+            // printf("net:%d fanout(%d,%d)",p->net_ID,p->fanout_pos.X,p->fanout_pos.Y);
+            int x = pin_list.at(*pid).fanout_pos.X-unrotate_comp_boundary.at(ddr->first).left;
+            int y = pin_list.at(*pid).fanout_pos.Y-unrotate_comp_boundary.at(ddr->first).bot;
+            pin_list.at(*pid).fanout_pos.X = x*(1/sqrt(2))-y*(1/sqrt(2))+
+                    unrotate_comp_boundary.at(ddr->first).left;
+            pin_list.at(*pid).fanout_pos.Y = x*(1/sqrt(2))+y*(1/sqrt(2))+
+                    unrotate_comp_boundary.at(ddr->first).bot;
+            // printf("->(%d,%d)\n",p->fanout_pos.X,p->fanout_pos.Y);
+            // printf("coarse_x_size:%d\n",coarse_x_size);
+            if (pin_list.at(*pid).escape_dir == TOP) {
+                if (pin_list.at(*pid).fanout_pos.Y < comp_boundary.at(ddr->first).top+0.5*coarse_x_length) {
+                    int dist=(comp_boundary.at(ddr->first).top+0.5*coarse_x_length-pin_list.at(*pid).fanout_pos.Y)*sqrt(2);
+                    pin_list.at(*pid).fanout_pos.X -= comp_boundary.at(ddr->first).top+0.5*coarse_x_length-pin_list.at(*pid).fanout_pos.Y;
+                    pin_list.at(*pid).fanout_pos.Y = comp_boundary.at(ddr->first).top+0.5*coarse_x_length;
+                    pin_list.at(*pid).esti_escape_routing_length += dist;
+                }
+                Coor coor(p->layer, (p->fanout_pos.X-total_boundary.left)/coarse_x_length, (p->fanout_pos.Y-total_boundary.bot)/coarse_y_length);
+                pin_list.at(*pid).ER_coarse_cell.push_back(coor);
+                printf("net:%d fanout coor:(%d,%d)\n",p->net_ID, coor.x,coor.y);
+            }
+            else if (pin_list.at(*pid).escape_dir == BOT) {
+
+            }
+            else if (pin_list.at(*pid).escape_dir == RIGHT) {
+
+            }
+            else if (pin_list.at(*pid).escape_dir == LEFT) {
+
+            }
+        }
+        
     }
 }

@@ -87,6 +87,13 @@ struct Boundary
         right = rtx;
         top = rty;
     }
+    void operator=(Boundary b) {
+        name = b.name;
+        top=b.top;
+        bot=b.bot;
+        right=b.right;
+        left=b.left;
+    }
 };
 
 class Cell{
@@ -133,6 +140,7 @@ class Pin{
     bool ignore;
     int escape_dir;
     std::pair<int,int> real_pos;
+    std::pair<int,int> un_rotate_pos;
     std::pair<int,int> fanout_pos;
     std::pair<int,int> coarse_coor;
     std::pair<int,int> fine_coor;
@@ -143,7 +151,7 @@ class Pin{
     std::vector<Coor> ER_coarse_cell;
     std::vector<Coor> ER_fine_cell;
     Pin();
-    Pin(int pID, int nID, std::pair<int,int> p, std::string pName, std::string nName, std::string cName);
+    Pin(int pID, int nID, std::pair<int,int> p1,std::pair<int,int> p2, std::string pName, std::string nName, std::string cName);
     bool dec_compare_x(Pin _p);
     std::string get_pinname(){return pin_name;};
   
@@ -376,6 +384,17 @@ class Edge {
         else 
             return false;
     }
+};
+
+class DDR {
+    public:
+    std::string name;
+    bool rotate;
+    std::vector<int> ADR_pins;
+    std::vector<int> DATA_pins;
+    std::pair<std::string,int> ddr1;//connect ddr : dir
+    std::pair<std::string,int> ddr2;
+    DDR():rotate(false){}
 };
 
 struct compare {

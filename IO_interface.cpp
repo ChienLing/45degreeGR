@@ -30,7 +30,7 @@ void output_gds(std::string filename, GR* router) {
         printf("cell size:%d\n", coarse_cell_size);
         output<<"gds2{600\n"
             <<"m=2018-09-14 14:26:15 a=2018-09-14 14:26:15\n"
-            <<"lib 'asap7sc7p5t_24_SL' 0.025 2.5e-10\n"
+            <<"lib 'asap7sc7p5t_24_SL' 0.0025 2.5e-10\n"
             <<"cell{c=2018-09-14 14:26:15 m=2018-09-14 14:26:15 'AND2x2_ASAP7_75t_SL'\n";
             //output GR grid line
         for (size_t i = 0; i < router->coarse_GRcell.at(0).size()+1; i++) {
@@ -126,7 +126,7 @@ void output_gds(std::string filename, GR* router) {
 
         //print common sequence
         /**/
-        if (false) {
+        if (true) {
             idx = 500;
             // printf("#router->CPU_LCS_group:%d\n",router->CPU_LCS_group.size());
             for (auto g=router->CPU_LCS_group.begin(); g!=router->CPU_LCS_group.end(); g++) {
@@ -147,22 +147,67 @@ void output_gds(std::string filename, GR* router) {
                                     string ddr_name=p.ddr_name;
                                     // printf("ddr name:%s\n",ddr_name.c_str());
                                     if(p.escape_dir==TOP) {
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
+                                        pair<int,int> p1 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                        pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, router->comp_boundary.at(p.comp_name).top+1000};
+                                        // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        // int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        // int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        // }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
                                     }
                                     if(p.escape_dir==BOT) {
                                         // if(router->ddr_escape.at(p.ddr_name)==RIGHT)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
+                                        pair<int,int> p1 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                        pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, router->comp_boundary.at(p.comp_name).bot-1000};
+                                        // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        // int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        // int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        // }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
                                     }
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
-                                                                <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
+                                    pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y};
+                                    pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                    // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                    //     int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                    //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                    //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                    //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                    // }
+                                    output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                    // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
+                                    //                             <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
+                                    //                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
+                                    //                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
                                     
                                 }
                                 if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
@@ -170,21 +215,66 @@ void output_gds(std::string filename, GR* router) {
                                     // printf("ddr name:%s\n",ddr_name.c_str());
                                     if(p.escape_dir==RIGHT) {
                                         // if(router->ddr_escape.at(p.ddr_name)==BOT)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                        pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                        pair<int,int> p2 = {router->comp_boundary.at(p.comp_name).right+1000, p.real_pos.Y+pitch*nid_shift->second};
+                                        // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        // int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        // int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        // }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                        //                             <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
                                     }
                                     if(p.escape_dir==LEFT) {
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                        pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                        pair<int,int> p2 = {router->comp_boundary.at(p.comp_name).left-1000, p.real_pos.Y+pitch*nid_shift->second};
+                                        // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        // int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        // int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                        //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                        //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        // }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                        //                             <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
                                     }
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
-                                                                <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
+                                    pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y};
+                                    pair<int,int> p2 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                    // if (router->DDR_list.at(p.ddr_name).rotate) {
+                                    //     int left = router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int bot = router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     int x1 = p1.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int y1 = p1.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     int x2 = p2.X-router->unrotate_comp_boundary.at(p.ddr_name).left;
+                                    //     int y2 = p2.Y-router->unrotate_comp_boundary.at(p.ddr_name).bot;
+                                    //     p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                    //     p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                    //     p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                    //     p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                    // }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+                                    // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
+                                    //                             <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
+                                    //                             <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
+                                    //                             <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
                                         // cout<<"("<<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second+100<<") ("
                                         //          <<p.real_pos.X<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
                                         //          <<router->comp_boundary.at(p.comp_name).left-1000<<","<<p.real_pos.Y+pitch*nid_shift->second-100<<") ("
@@ -238,39 +328,138 @@ void output_gds(std::string filename, GR* router) {
                                 if (p.CPU_side)
                                     continue;
                                 if (p.escape_dir==TOP || p.escape_dir==BOT) {
-                                    if (p.escape_dir==TOP)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
-                                                                <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
-                                                                <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
-                                    if(p.escape_dir==TOP)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
-                                    if(p.escape_dir==BOT)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
-                                                                    <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
+                                    // if (p.escape_dir==TOP)                    
+                                    // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+100<<" "
+                                    //                             <<p.real_pos.X<<" "<<p.real_pos.Y-100<<" "
+                                    //                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y-100<<" "
+                                    //                             <<p.real_pos.X+pitch*nid_shift->second<<" "<<p.real_pos.Y+100<<")}\n";
+                                    if(p.escape_dir==TOP) {
+                                        pair<int,int> p1 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                        pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, router->comp_boundary.at(p.comp_name).top+1000};
+                                        if (router->DDR_list.at(p.ddr_name).rotate) {
+                                            int left = p.real_pos.X;
+                                            int bot = p.real_pos.Y;
+                                            // printf("net:%d pin:(%d,%d)\n",p.net_ID,p.real_pos.X,p.real_pos.Y);
+                                            int x1 = p1.X-left;
+                                            int y1 = p1.Y-bot;
+                                            int x2 = p2.X-left;
+                                            int y2 = p2.Y-bot;
+                                            p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                            p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                            p2.X = p.fanout_pos.X;
+                                            p2.Y = p.fanout_pos.Y;
+                                        }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+
+                                    }
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).top+1000<<")}\n";
+                                    if(p.escape_dir==BOT){
+                                        pair<int,int> p1 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                        pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, router->comp_boundary.at(p.comp_name).bot-1000};
+                                        if (router->DDR_list.at(p.ddr_name).rotate) {
+                                            int left = p.real_pos.X;
+                                            int bot = p.real_pos.Y;
+                                            int x1 = p1.X-left;
+                                            int y1 = p1.Y-bot;
+                                            int x2 = p2.X-left;
+                                            int y2 = p2.Y-bot;
+                                            p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                            p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                            p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                            p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+
+                                    }
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+pitch*nid_shift->second+100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<p.real_pos.Y<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second-100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<" "
+                                        //                             <<p.real_pos.X+pitch*nid_shift->second+100<<" "<<router->comp_boundary.at(p.comp_name).bot-1000<<")}\n";
+                                    pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y};
+                                    pair<int,int> p2 = {p.real_pos.X+pitch*nid_shift->second, p.real_pos.Y};
+                                    if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        int left = p.real_pos.X;
+                                        int bot = p.real_pos.Y;
+                                        int x1 = p1.X-left;
+                                        int y1 = p1.Y-bot;
+                                        int x2 = p2.X-left;
+                                        int y2 = p2.Y-bot;
+                                        p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                    }
+                                    output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
                                     
                                 }
                                 if (p.escape_dir==RIGHT || p.escape_dir==LEFT) {
-                                    if (p.escape_dir==LEFT)
-                                    output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
-                                                                <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
-                                                                <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
-                                    if(p.escape_dir==RIGHT)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
-                                    if(p.escape_dir==LEFT)
-                                        output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
-                                                                    <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
-                                                                    <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    // if (p.escape_dir==LEFT)
+                                    // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X+100<<" "<<p.real_pos.Y<<" "
+                                    //                             <<p.real_pos.X-100<<" "<<p.real_pos.Y<<" "
+                                    //                             <<p.real_pos.X-100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<" "
+                                    //                             <<p.real_pos.X+100<<" "<<p.real_pos.Y+pitch*nid_shift->second<<")}\n";
+                                    if(p.escape_dir==RIGHT) {
+                                        pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                        pair<int,int> p2 = {router->comp_boundary.at(p.comp_name).right+1000, p.real_pos.Y+pitch*nid_shift->second};
+                                        if (router->DDR_list.at(p.ddr_name).rotate) {
+                                            int left = p.real_pos.X;
+                                            int bot = p.real_pos.Y;
+                                            int x1 = p1.X-left;
+                                            int y1 = p1.Y-bot;
+                                            int x2 = p2.X-left;
+                                            int y2 = p2.Y-bot;
+                                            p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                            p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                            p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                            p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+
+                                    }
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                        //                             <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).right+1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    if(p.escape_dir==LEFT) {
+                                        pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                        pair<int,int> p2 = {router->comp_boundary.at(p.comp_name).left-1000, p.real_pos.Y+pitch*nid_shift->second};
+                                        if (router->DDR_list.at(p.ddr_name).rotate) {
+                                            int left = p.real_pos.X;
+                                            int bot = p.real_pos.Y;
+                                            int x1 = p1.X-left;
+                                            int y1 = p1.Y-bot;
+                                            int x2 = p2.X-left;
+                                            int y2 = p2.Y-bot;
+                                            p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                            p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                            p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                            p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                        }
+                                        output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
+
+                                    }
+                                        // output<<"b{"<<idx<<" dt0 xy("<<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<" "
+                                        //                             <<p.real_pos.X<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second-100<<" "
+                                        //                             <<router->comp_boundary.at(p.comp_name).left-1000<<" "<<p.real_pos.Y+pitch*nid_shift->second+100<<")}\n";
+                                    pair<int,int> p1 = {p.real_pos.X, p.real_pos.Y};
+                                    pair<int,int> p2 = {p.real_pos.X, p.real_pos.Y+pitch*nid_shift->second};
+                                    if (router->DDR_list.at(p.ddr_name).rotate) {
+                                        int left = p.real_pos.X;
+                                        int bot = p.real_pos.Y;
+                                        int x1 = p1.X-left;
+                                        int y1 = p1.Y-bot;
+                                        int x2 = p2.X-left;
+                                        int y2 = p2.Y-bot;
+                                        p1.X = x1*(1/sqrt(2))-y1*(1/sqrt(2))+left;
+                                        p1.Y = x1*(1/sqrt(2))+y1*(1/sqrt(2))+bot;
+                                        p2.X = x2*(1/sqrt(2))-y2*(1/sqrt(2))+left;
+                                        p2.Y = x2*(1/sqrt(2))+y2*(1/sqrt(2))+bot;
+                                    }
+                                    output<<"p{"<<idx<<" dt0 pt1 w100.00 xy("<<p1.X<<" "<<p1.Y<<" "<<p2.X<<" "<<p2.Y<<")}\n";
                                     
                                 }
                             }
@@ -314,6 +503,20 @@ void output_gds(std::string filename, GR* router) {
                         //     <<" "<<nid_l->second.ep2.X<<" "<<nid_l->second.ep2.Y<<")}\n"; 
                     }
                     idx++;
+                }
+            }
+            
+            idx = 500;
+            for (auto g=router->CPU_LCS_group.begin(); g!=router->CPU_LCS_group.end(); g++) {
+                for (auto sub_g=g->begin(); sub_g!=g->end(); sub_g++) {
+                    for (auto nid_shift=sub_g->begin(); nid_shift!=sub_g->end(); nid_shift++) {
+                        for (auto pid=router->net_list.at(nid_shift->first).net_pinID.begin(); pid!=router->net_list.at(nid_shift->first).net_pinID.end(); pid++) { 
+                            pair<int,int> p1=router->pin_list.at(*pid).fanout_pos;
+                            output<<"p{"<<idx<<" dt0 pt2 w800.00 xy("<<p1.X<<" "<<p1.Y
+                                    <<" "<<p1.X<<" "<<p1.Y<<")}\n"; 
+                        }
+                    }
+                idx++;
                 }
             }
         }

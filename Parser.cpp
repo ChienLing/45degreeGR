@@ -468,7 +468,7 @@ void Parser::read_netlist() {
                         if (repeat != true)
                         {
                             std::pair<int,int> pos({pinx,piny});
-                            Pin pintemp(router->pin_list.size(), router->net_list.size(),pos,name,netName_temp, compname);
+                            Pin pintemp(router->pin_list.size(), router->net_list.size(),pos,pos,name,netName_temp, compname);
                             router->pin_list.push_back(pintemp);
                             router->pin_NameID[pintemp.get_pinname()] = router->pin_list.size() - 1;
                         }
